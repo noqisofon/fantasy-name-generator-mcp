@@ -87,6 +87,7 @@ EXTRA_PLACES = {
 # 地名: decorate=True で混ぜる「型」の飾り語
 # ---------------------------------------------------------------------------
 # 「種類が前」の型 (海中都市 ニーン、など) で使う、種類ごとの言い換え語。(日本語, 英語)
+# ※英語は将来の拡張・他ツール連携用の語彙で、現状の place 生成では日本語呼称 (ja_name) の装飾に利用されます
 PLACE_KIND_SYNONYMS = {
     "town": [("町", "Town"), ("集落", "Settlement"), ("里", "Hamlet"), ("郷", "Village")],
     "city": [("都市", "City"), ("帝都", "Imperial Capital"), ("州都", "Provincial Capital"),

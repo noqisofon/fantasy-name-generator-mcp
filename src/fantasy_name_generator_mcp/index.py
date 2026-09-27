@@ -858,7 +858,8 @@ def place_names(
         return out
 
     # --- decorate=True: 種類が前・方角/新旧・複合名・雅語の異名を混ぜる ---
-    taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
+    avoid_list = _reserved_names() + list(avoid or [])
+    taken = _ExactIndex(avoid_list) if loose else _SimIndex(avoid_list)
     epithets = PLACE_EPITHETS.get(kind) or []
     kind_syns = PLACE_KIND_SYNONYMS.get(kind) or []
     # 「＝」で複数語をつなぐ型はカタカナ風の名前向けなので、和風(ひらがな)では出さない
@@ -876,14 +877,16 @@ def place_names(
         pat = r.choices(pat_names, weights=pat_w, k=1)[0]
         if pat == "epithet_phrase":
             ph_ja, ph_ro = r.choice(epithets)
-            return ph_ro, {"kind": kind, "pattern": pat, "ja_name": ph_ja}
+            kana = " ".join(_kana(w, spec) for w in ph_ro.split())
+            return ph_ro, kana, {"kind": kind, "pattern": pat, "ja_name": ph_ja}
         if pat == "compound_join":
             n_parts = 3 if r.random() < 0.3 else 2
             lead = [_build_stem(spec, r, r.randint(1, 2)) for _ in range(n_parts - 1)]
             name_tail, suf, gloss, _kr, ja_tail = _place_stem(spec, r, kind, sfxs, style)
             ja_name = "＝".join([_kana(s, spec) for s in lead] + [ja_tail])
+            kana = "＝".join([_kana(s, spec) for s in lead] + [_kana(name_tail, spec)])
             name = "-".join(s.capitalize() for s in lead) + "-" + name_tail.capitalize()
-            return name, {
+            return name, kana, {
                 "kind": kind, "pattern": pat, "suffix": suf, "suffix_meaning": gloss,
                 "ja_name": ja_name, "_valid_tail": name_tail, "_valid_leads": lead,
             }
@@ -895,20 +898,33 @@ def place_names(
         elif pat == "direction_prefix":
             d_ja, _d_en = r.choice(PLACE_DIRECTION_PREFIXES)
             extra["ja_name"] = d_ja + ja_name
-        return name, extra
+        return name, _kana(name, spec), extra
 
-    results, seen = [], set()
-    tries = count * 250
+    results, seen_names, seen_ja = [], set(), set()
+    first_cap = max(2, math.ceil(count / 3)) if not starts_with else count
+    first_seen = Counter()
+    tries = count * (300 if sw else 150)
+    recent_ok: deque[int] = deque()
+
     for i in range(tries):
         if len(results) >= count:
             break
-        name, extra = gen_decorated(rng)
+        while recent_ok and recent_ok[0] <= i - STALL_WINDOW:
+            recent_ok.popleft()
+        if i >= STALL_WINDOW and len(recent_ok) < STALL_MIN_OK:
+            break
+
+        name, kana, extra = gen_decorated(rng)
         pat = extra.get("pattern", "plain")
         key = name.lower()
-        if key in taken or key in seen:
+        ja_name = extra["ja_name"]
+        if key in seen_names or ja_name in seen_ja:
             continue
-        if sw and not (name.lower().startswith(sw) or extra["ja_name"].startswith(starts_with)):
+        if taken.similar(key):
             continue
+        if sw and not (name.lower().startswith(sw) or ja_name.startswith(starts_with)):
+            continue
+
         if pat == "epithet_phrase":
             ok = True
         elif pat == "compound_join":
@@ -919,11 +935,21 @@ def place_names(
             ok = (min_len <= len(name) <= max_len) and _valid(name, spec, min_len, max_len)
         if not ok:
             continue
-        seen.add(key)
-        if pat in ("compound_join", "epithet_phrase"):
-            entry = {"name": name, "kana": extra["ja_name"]}
-        else:
-            entry = {"name": name.capitalize(), "kana": _kana(name, spec)}
+
+        f = name[0].lower()
+        if pat not in ("compound_join", "epithet_phrase") and first_seen[f] >= first_cap:
+            continue
+        first_seen[f] += 1
+
+        seen_names.add(key)
+        seen_ja.add(ja_name)
+        taken.add(key)
+        recent_ok.append(i)
+
+        entry = {
+            "name": name if pat in ("compound_join", "epithet_phrase") else name.capitalize(),
+            "kana": kana,
+        }
         entry.update(extra)
         results.append(entry)
 
@@ -1246,18 +1272,21 @@ def tavern_names(
     taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
     whimsy = max(0.0, min(float(whimsy), 1.0))
     make = _western_tavern if tone == "western" else _wafuu_tavern
-    results, seen, used = [], set(), set()
+    results, seen_en, seen_ja, used = [], set(), set(), set()
     tries = count * 200
     for i in range(tries):
         if len(results) >= count:
             break
         rec, words = make(rng, kind if kind != "any" else rng.choice(["tavern", "inn"]), whimsy, spec)
-        if rec["en"].lower() in taken or rec["ja"].lower() in taken or rec["en"].lower() in seen:
+        en_key = rec["en"].lower()
+        ja_key = rec["ja"].lower()
+        if en_key in taken or ja_key in taken or en_key in seen_en or ja_key in seen_ja:
             continue
         # 前半は同じ単語(鹿など)を使い回さない。候補が尽きそうなら後半は許す
         if i < tries * 0.3 and used & words:
             continue
-        seen.add(rec["en"].lower())
+        seen_en.add(en_key)
+        seen_ja.add(ja_key)
         used |= words
         results.append(rec)
     out = {"tone": tone, "seed": seed, "names": results}
@@ -1266,7 +1295,7 @@ def tavern_names(
     return out
 
 
-_KATAKANA_WORD_RE = re.compile(r"^[ァ-ヺー]+$")
+_KATAKANA_WORD_RE = re.compile(r"^[ァ-ヺー・]+$")
 
 
 def _is_katakana_word(s: str) -> bool:
@@ -1495,17 +1524,20 @@ def shop_names(
     whimsy = max(0.0, min(float(whimsy), 1.0))
     make = _shop_western if tone == "western" else _shop_wafuu
     types = list(SHOP_TYPES)
-    results, seen, used = [], set(), set()
+    results, seen_en, seen_ja, used = [], set(), set(), set()
     tries = count * 200
     for i in range(tries):
         if len(results) >= count:
             break
         rec, words = make(rng, shop_type if shop_type != "any" else rng.choice(types), whimsy, spec)
-        if rec["en"].lower() in taken or rec["ja"].lower() in taken or rec["en"].lower() in seen:
+        en_key = rec["en"].lower()
+        ja_key = rec["ja"].lower()
+        if en_key in taken or ja_key in taken or en_key in seen_en or ja_key in seen_ja:
             continue
         if i < tries * 0.3 and used & words:  # 前半は同じ単語(狼など)を使い回さない
             continue
-        seen.add(rec["en"].lower())
+        seen_en.add(en_key)
+        seen_ja.add(ja_key)
         used |= words
         results.append(rec)
     out = {"tone": tone, "shop_type": shop_type, "seed": seed, "names": results}

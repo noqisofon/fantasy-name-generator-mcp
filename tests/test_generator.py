@@ -489,6 +489,56 @@ class TestFantasyNameGenerator(unittest.TestCase):
             self._cli("shop", "-k", "spaceport")
         self.assertIn("shop", self._cli("styles")[1])
 
+    def test_place_names_decorate_kana_has_no_kanji(self):
+        import re
+        kanji_re = re.compile(r"[\u4e00-\u9fff]")
+        for style in ("elf", "human", "wafuu"):
+            for kind in ("ruins", "mountain", "town", "cave"):
+                res = place_names(style=style, kind=kind, count=30, seed=42, decorate=True)
+                for item in res["names"]:
+                    # 読み仮名 (kana) に漢字が混入していないこと
+                    self.assertIsNone(
+                        kanji_re.search(item["kana"]),
+                        f"kana contains kanji: pattern={item.get('pattern')} kana={item['kana']} ja_name={item['ja_name']}"
+                    )
+                    # 和風ならひらがな、それ以外ならカタカナ (または記号)
+                    if style == "wafuu":
+                        for ch in item["kana"].replace(" ", "").replace("＝", "").replace("ー", ""):
+                            self.assertTrue("ぁ" <= ch <= "ん", f"non-hiragana in wafuu kana: {item['kana']}")
+
+    def test_place_names_decorate_speed_and_stall(self):
+        import time
+        t0 = time.time()
+        res = place_names(style="southern", kind="desert", count=3000, starts_with="zz", seed=1, decorate=True)
+        elapsed = time.time() - t0
+        # 早期打ち切りが機能して、75万回ループを回さず高速に完了すること (1.5秒未満)
+        self.assertLess(elapsed, 1.5, f"stall detection failed: took {elapsed:.2f}s")
+        self.assertEqual(len(res["names"]), 0)
+        self.assertIn("個しか作れませんでした", res.get("note", ""))
+
+    def test_cli_serve_handled(self):
+        from unittest.mock import MagicMock, patch
+        with patch("fantasy_name_generator_mcp.index._build_server") as mock_build:
+            mock_server = MagicMock()
+            mock_build.return_value = mock_server
+            code, _out, _err = self._cli("serve")
+            self.assertEqual(code, 0)
+            mock_server.run.assert_called_once()
+
+    def test_is_katakana_word_with_nakaguro(self):
+        self.assertTrue(_is_katakana_word("セレクト・ショップ"))
+        self.assertTrue(_is_katakana_word("アンティーク・ショップ"))
+        self.assertFalse(_is_katakana_word("武器屋"))
+
+    def test_tavern_and_shop_no_duplicate_ja(self):
+        for _ in range(5):
+            t_res = tavern_names("wafuu", "any", 30, seed=123)
+            ja_list = [n["ja"] for n in t_res["names"]]
+            self.assertEqual(len(ja_list), len(set(ja_list)), "duplicate ja found in tavern_names")
+
+            s_res = shop_names("any", "wafuu", 30, seed=123)
+            ja_shop_list = [n["ja"] for n in s_res["names"]]
+            self.assertEqual(len(ja_shop_list), len(set(ja_shop_list)), "duplicate ja found in shop_names")
 
 
 if __name__ == "__main__":

@@ -275,7 +275,16 @@ def run(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
     try:
-        if cmd == "char":
+        if cmd == "serve":
+            from .index import _build_server
+            try:
+                server = _build_server()
+            except ImportError:
+                print("エラー: mcp パッケージが必要です: pip install mcp", file=sys.stderr)
+                return 1
+            server.run()
+            return 0
+        elif cmd == "char":
             r = character_names(args.style, args.count, args.gender, args.seed, args.family,
                                 args.starts_with, avoid=args.avoid, loose=args.loose)
             return _emit(r, args, _fmt_char)
@@ -313,3 +322,7 @@ def run(argv: list[str] | None = None) -> int:
         print(f"エラー: {e}", file=sys.stderr)
         return 2
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(run())
