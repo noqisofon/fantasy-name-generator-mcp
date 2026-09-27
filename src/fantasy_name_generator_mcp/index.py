@@ -162,10 +162,16 @@ def to_katakana(name: str, is_wafuu: bool = False) -> str:
             continue
 
         # 連続子音の処理
-        # nn -> ン
+        # nn の処理
         if c == "n" and i + 1 < n_len and s[i + 1] == "n":
             out.append("ン")
-            i += 1
+            # 次の文字(i+2)が母音なら、2つ目のnは母音と結合させる (例: Anna -> ア+ン+ナ)
+            if i + 2 < n_len and s[i + 2] in VOW:
+                i += 1
+            else:
+                # 母音が続かないなら連続するnをまとめて「ン」1つにする (例: Lynn -> リン, Gwenn -> グウェン)
+                while i < n_len and s[i] == "n":
+                    i += 1
             continue
 
         # ll, rr, mm -> 単子音に圧縮 (ll -> l など)
