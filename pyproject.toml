@@ -1,0 +1,19 @@
+[project]
+name = "fantasy-name-generator-mcp"
+version = "0.1.0"
+description = "Fantasy name generator MCP server for characters, places, and world-building"
+readme = "README.md"
+authors = [
+    { name = "noqisofon", email = "ned.rihine@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.2.0",
+]
+
+[project.scripts]
+fantasy-name-generator-mcp = "fantasy_name_generator_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"

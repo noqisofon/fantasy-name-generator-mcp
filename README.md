@@ -1,0 +1,158 @@
+# Fantasy Name Generator MCP 🎲🏰
+
+創作（小説・TRPG・ゲーム制作・世界観設定など）に特化した人名・地名生成 MCP (Model Context Protocol) サーバーです。
+
+LLM が命名を行う際に陥りがちな **「ネオ〜」「シャドウ〜」「ルミナス〜」といった定型的な偏り** を、外部の言語学的音素テーブル（Onset-Nucleus-Coda）と乱数シードによって解消します。
+
+---
+
+## ✨ 主な特徴
+
+- 🧝 **7種類の命名スタイル**: エルフ風、ドワーフ風、中世西洋、オーク風、和風、古代魔術、南方交易都市風。
+- 🗺️ **意味付き地名生成**: 語幹＋種別ごとの接尾辞（例: `-ton`=町、`-minster`=大聖堂の街、`-kaz`=山）により、地形や歴史の一貫した地名を生成。
+- 🧬 **マルコフ連鎖生成**: 既存の名前リスト（3個以上）から文字の並びを学習し、「同じ世界っぽい」新しい名前を自動生成。
+- 🔖 **名前の予約・重複回避**: 採用した名前をローカルに保存（`reserve_names`）。以降の生成で同一・類似の名前（レーベンシュタイン距離）を自動回避。
+- 🈲 **安心のフィルタリング**: 不適切な単語や実在の主要都市名（東京、ロンドン等）の混入を自動排除。
+- 🇯🇵 **自然なカタカナ・ひらがな変換**: 洋風の名前にはカタカナ（促音・長音対応）、和風スタイルにはひらがなを自動付与。
+- 📦 **超軽量**: 依存パッケージは `mcp` のみ。
+
+---
+
+## 🚀 クイックスタート
+
+### 動作確認（デモ実行）
+
+```bash
+# uv を使ってデモを実行
+uv run fantasy-name-generator-mcp --demo
+```
+
+---
+
+## ⚙️ MCP クライアントの設定
+
+### Claude Desktop
+
+設定ファイル（Windows: `%APPDATA%\Claude\claude_desktop_config.json`, macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`）に以下を追加します。
+
+```json
+{
+  "mcpServers": {
+    "fantasy-names": {
+      "command": "uvx",
+      "args": ["--from", "fantasy-name-generator-mcp", "fantasy-name-generator-mcp"]
+    }
+  }
+}
+```
+
+※ ローカル開発環境のソースから直接起動する場合：
+
+```json
+{
+  "mcpServers": {
+    "fantasy-names": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "C:/Users/nedri/Projects/fantasy-name-generator-mcp",
+        "run",
+        "fantasy-name-generator-mcp"
+      ]
+    }
+  }
+}
+```
+
+### Cursor / Windsurf
+
+MCP 設定画面にて以下を追加します：
+- **Name**: `fantasy-names`
+- **Command**: `uvx --from fantasy-name-generator-mcp fantasy-name-generator-mcp`
+
+---
+
+## 🛠️ 提供ツール (Tools)
+
+### 1. `generate_character_names`
+キャラクター名を生成します。
+
+| 引数 | 型 | 既定値 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `style` | `Literal` | `"elf"` | スタイル (`elf`, `dwarf`, `human`, `orc`, `wafuu`, `arcane`, `southern`) |
+| `count` | `int` | `5` | 生成数 (1〜50) |
+| `gender` | `Literal` | `"any"` | 性別 (`any`, `male`, `female`, `neutral`) |
+| `with_family` | `bool` | `False` | 姓（ファミリーネーム）を付けるか |
+| `seed` | `int \| str \| None` | `None` | 乱数シード（同じシードなら完全に同じ結果が再現） |
+| `starts_with` | `str \| None` | `None` | 名前の頭文字指定 (例: `'ka'`, `'el'`) |
+| `avoid` | `list[str] \| None` | `None` | 除外したい名前リスト（予約済みの名前は自動除外） |
+
+### 2. `generate_place_names`
+地名を生成します。
+
+| 引数 | 型 | 既定値 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `style` | `Literal` | `"elf"` | 命名スタイル |
+| `kind` | `Literal` | `"town"` | 地名種別 (`town`, `city`, `mountain`, `river`, `forest`, `lake`, `fortress`, `kingdom`) |
+| `count` | `int` | `5` | 生成数 (1〜50) |
+| `seed` | `int \| str \| None` | `None` | 乱数シード |
+| `starts_with` | `str \| None` | `None` | 地名の頭文字指定 |
+| `avoid` | `list[str] \| None` | `None` | 除外リスト |
+
+### 3. `generate_names_from_examples`
+既存の名前リストからマルコフ連鎖で「同じ世界っぽい」名前を生成します。
+
+| 引数 | 型 | 既定値 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `examples` | `list[str]` | **必須** | サンプル名リスト (3個以上、10個以上推奨) |
+| `count` | `int` | `5` | 生成数 (1〜50) |
+| `order` | `int` | `2` | マルコフ連鎖の次数 (1〜3) |
+| `seed` | `int \| str \| None` | `None` | 乱数シード |
+
+### 4. `reserve_names` / `list_reserved` / `release_names`
+- `reserve_names(names, note)`: 採用した名前を予約リストに記録（重複回避用）。
+- `list_reserved()`: 予約済みの名前一覧を取得。
+- `release_names(names)`: 予約を解除。
+
+### 5. `list_styles`
+利用可能なスタイル一覧とサンプルのプレビューを返します。
+
+---
+
+## 📚 リソース (Resources) & プロンプト (Prompts)
+
+### Resources
+- `fantasy://styles`: 全スタイル定義と接尾辞テーブルの JSON データ
+- `fantasy://reserved`: 現在予約されている名前の一覧
+
+### Prompts
+- `brainstorm_character`: キャラクターの命名から詳細な人物設定（生い立ち、能力、口調）までのブレインストーミングを支援するプロンプト
+- `brainstorm_world_places`: 世界観の地図作成や地理・拠点の設計を支援するプロンプト
+
+---
+
+## 🎭 命名スタイル一覧
+
+| スタイルキー | ラベル | 特徴・サンプル |
+| :--- | :--- | :--- |
+| `elf` | エルフ風 | 流麗で母音が多い（例: ロレンディル、サエララエル） |
+| `dwarf` | ドワーフ風 | 子音が硬く短い（例: ブラクドゥル、カルグルガルン） |
+| `human` | 中世西洋風・人間 | 古い英独仏のような素朴な響き（例: オルドリック、パレイ） |
+| `orc` | オーク風 | 濁音や破裂音が多い荒々しい響き（例: グラクザグ、ウクモグ） |
+| `wafuu` | 和風 | ひらがな表記の自然な和風名（例: らすけ、にしやま） |
+| `arcane` | 古代・魔術・異形 | 古い呪文や邪神風の響き（例: ヴァクソス、ヌヴェクス） |
+| `southern` | 南方・交易都市風 | 地中海〜中東の商業都市風の響き（例: サンタヌヤーン系、ケビノ） |
+
+---
+
+## 🧪 テストの実行
+
+```bash
+uv run python -m unittest discover tests
+```
+
+---
+
+## 📄 ライセンス
+
+MIT License
