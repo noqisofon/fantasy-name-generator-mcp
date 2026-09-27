@@ -1296,15 +1296,21 @@ def _demo():
         print(f"  {tone}:", ", ".join(f"{n['ja']} / {n['en']}" for n in t["names"]))
 
 
-def main():
-    if "--demo" in sys.argv:
+def main() -> None:
+    """引数なし / serve = MCP サーバー、--demo = 見本表示、それ以外 = コマンドライン (cli.py)"""
+    argv = sys.argv[1:]
+    if "--demo" in argv:
         _demo()
-    else:
+    elif not argv or argv[0] == "serve":
         try:
             server = _build_server()
         except ImportError:
             sys.exit("mcp パッケージが必要です: pip install mcp")
         server.run()
+    else:
+        from .cli import run
+
+        sys.exit(run(argv))
 
 
 if __name__ == "__main__":

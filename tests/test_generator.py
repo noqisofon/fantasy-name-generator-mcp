@@ -1,8 +1,12 @@
+import contextlib
+import io
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
+from fantasy_name_generator_mcp.cli import run as cli_run
 from fantasy_name_generator_mcp.extra_data import KIND_JA_TERM
 from fantasy_name_generator_mcp.index import (
     _mora,
@@ -201,6 +205,60 @@ class TestFantasyNameGenerator(unittest.TestCase):
         reserve([n["ja"] for n in first])
         again = tavern_names("wafuu", "inn", 3, seed=4)["names"]
         self.assertFalse({n["ja"] for n in first} & {n["ja"] for n in again})
+
+    # --- コマンドライン (CLI) ---
+    def _cli(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli_run(list(argv))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_cli_generates_each_kind(self):
+        cases = [
+            (["char", "-s", "wafuu", "-g", "male", "-n", "3", "--family", "--seed", "1"], 3),
+            (["place", "-s", "southern", "-k", "desert", "-n", "3", "--seed", "1"], 3),
+            (["country", "-s", "human", "--gov", "empire", "-n", "2", "--seed", "1"], 2),
+            (["tavern", "-t", "western", "-k", "inn", "-n", "4", "--seed", "1"], 4),
+            (["tavern", "-t", "wafuu", "-n", "4", "--seed", "1"], 4),
+            (["examples", "Arthur", "Lancelot", "Gawain", "Percival", "Galahad", "-n", "2", "--seed", "1"], 1),
+        ]
+        for argv, minimum in cases:
+            code, out, err = self._cli(*argv)
+            self.assertEqual(code, 0, argv)
+            self.assertGreaterEqual(len(out.strip().splitlines()), minimum, argv)
+            self.assertIn("# seed:", err)  # seed は標準error側 (パイプしやすい)
+
+    def test_cli_seed_reproducible_and_json(self):
+        a = self._cli("tavern", "-t", "western", "--seed", "7", "--json")
+        b = self._cli("tavern", "-t", "western", "--seed", "7", "--json")
+        self.assertEqual(a[1], b[1])
+        data = json.loads(a[1])
+        self.assertEqual(data["seed"], 7)
+        self.assertEqual(len(data["names"]), 5)
+
+    def test_cli_reserve_roundtrip(self):
+        self.assertEqual(self._cli("reserve", "金の竜亭", "--note", "常宿")[0], 0)
+        code, out, _ = self._cli("reserved")
+        self.assertIn("金の竜亭", out)
+        self.assertIn("常宿", out)
+        self.assertIn("解除しました", self._cli("release", "金の竜亭")[1])
+        self.assertNotIn("金の竜亭", self._cli("reserved")[1])
+
+    def test_cli_errors(self):
+        with self.assertRaises(SystemExit) as cm:  # 不正な種別は argparse が弾く
+            self._cli("place", "-k", "tundra")
+        self.assertEqual(cm.exception.code, 2)
+        code, _out, err = self._cli("examples", "a", "b")  # 値の誤り
+        self.assertEqual(code, 2)
+        self.assertIn("エラー", err)
+        code, out, _err = self._cli("char", "-s", "wafuu", "--starts-with", "zzzz")  # 1つも作れない
+        self.assertEqual((code, out.strip()), (1, ""))
+
+    def test_cli_styles_lists_everything(self):
+        _code, out, _err = self._cli("styles")
+        for word in ("wafuu", "desert", "empire"):
+            self.assertIn(word, out)
+
 
 
 if __name__ == "__main__":

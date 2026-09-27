@@ -30,6 +30,35 @@ uv run fantasy-name-generator-mcp --demo
 python -m fantasy_name_generator_mcp --demo
 ```
 
+### コマンドラインから直接使う（MCP なし）
+
+引数なしで起動すると MCP サーバーになりますが、サブコマンドを付けると、ターミナルから直接名前を生成できます。
+
+```bash
+uv run fantasy-name-generator-mcp tavern -t western -k inn -n 5      # 西洋風の宿屋名
+uv run fantasy-name-generator-mcp char -s wafuu -g male -n 5 --family # 和風の男性名(姓つき)
+uv run fantasy-name-generator-mcp place -s southern -k desert         # 南方風の砂漠の地名
+uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名
+uv run fantasy-name-generator-mcp examples Santanyaan Maribel Marisol # 響きを学習して新しい名前
+uv run fantasy-name-generator-mcp styles                              # スタイル・種別・政体の一覧
+```
+
+| コマンド                           | 内容                     | 主なオプション                                               |
+| :--------------------------------- | :----------------------- | :----------------------------------------------------------- |
+| `char`                             | キャラクター名           | `-s` スタイル, `-g` 性別, `--family` 姓つき, `--starts-with` |
+| `place`                            | 地名                     | `-s` スタイル, `-k` 種別, `--starts-with`                    |
+| `country`                          | 国名                     | `-s` スタイル, `--gov` 政体, `--starts-with`                 |
+| `tavern`                           | 酒場・宿屋の屋号         | `-t` 西洋風/和風, `-k` 酒場/宿屋, `-w` 擬人化の率            |
+| `examples`                         | 既存の名前から新しい名前 | 名前を3個以上, `--order`                                     |
+| `reserve` / `reserved` / `release` | 予約の追加・一覧・解除   | `--note`                                                     |
+| `styles`                           | スタイル等の一覧と見本   |                                                              |
+
+共通のオプション: `-n` 個数、`--seed` 乱数シード（同じ seed なら同じ結果）、`--avoid` 除外する名前、`--json` JSON で出力。
+名前は標準出力に、seed や注記は標準エラーに出るので、`| clip` やファイルへのリダイレクトでも名前だけが取れます。
+1 つも作れなかったときの終了コードは `1`、引数や値の誤りは `2` です。`-h` で全オプションを確認できます。
+
+> **メモ**: Claude Desktop などが `fantasy-name-generator-mcp` を実行中だと、Windows は実行ファイルをロックします。`uv run` が同期に失敗したときは `uv run --no-sync ...` か `python -m fantasy_name_generator_mcp ...` を使ってください。
+
 ---
 
 ## ⚙️ MCP クライアントの設定
