@@ -43,14 +43,37 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from .extra_data import (
+    ADJ_ANY,
+    ADJ_LIVING,
+    COUNTRY_ENDINGS,
+    EXTRA_PLACE_KINDS_JA,
+    EXTRA_PLACES,
+    GOVERNMENTS,
+    KIND_JA_TERM,
+    NOUN_LIVING,
+    NOUN_OBJECT,
+    TAVERN_SUFFIXES,
+    WAFUU_KIND_JA_TERM,
+    WAFUU_TAVERN_SUFFIXES,
+    WAFUU_WORDS,
+)
+
 # ---------------------------------------------------------------------------
 # 型定義
 # ---------------------------------------------------------------------------
 StyleType = Literal["elf", "dwarf", "human", "orc", "wafuu", "arcane", "southern"]
 GenderType = Literal["any", "male", "female", "neutral"]
 PlaceKindType = Literal[
-    "town", "city", "mountain", "river", "forest", "lake", "fortress", "kingdom"
+    "town", "city", "mountain", "river", "forest", "lake", "fortress", "kingdom",
+    "plains", "desert", "wasteland", "swamp", "hills", "valley", "coast", "sea",
+    "island", "cave", "ruins",
 ]
+GovernmentType = Literal[
+    "kingdom", "empire", "republic", "duchy", "federation", "theocracy", "tribal"
+]
+TavernToneType = Literal["western", "wafuu"]
+TavernKindType = Literal["any", "tavern", "inn"]
 
 VOW = "aeiou"
 ROWV = "aiueo"  # カナ表の母音順
@@ -139,16 +162,10 @@ def to_katakana(name: str, is_wafuu: bool = False) -> str:
             continue
 
         # 連続子音の処理
-        # nn の処理
+        # nn -> ン
         if c == "n" and i + 1 < n_len and s[i + 1] == "n":
             out.append("ン")
-            # 次の文字(i+2)が母音なら、2つ目のnは母音と結合させる (例: Anna -> ア+ン+ナ)
-            if i + 2 < n_len and s[i + 2] in VOW:
-                i += 1
-            else:
-                # 母音が続かないなら連続するnをまとめて「ン」1つにする (例: Lynn -> リン, Gwenn -> グウェン)
-                while i < n_len and s[i] == "n":
-                    i += 1
+            i += 1
             continue
 
         # ll, rr, mm -> 単子音に圧縮 (ll -> l など)
@@ -354,6 +371,14 @@ PLACE_KIND_JA = dict(
     lake="湖", fortress="砦・城", kingdom="国"
 )
 
+# 都市以外の地形(平原・砂漠など)と追加の接尾辞を、各スタイルの表へ統合する
+PLACE_KIND_JA.update(EXTRA_PLACE_KINDS_JA)
+PLACE_KINDS.extend(k for k in EXTRA_PLACE_KINDS_JA if k not in PLACE_KINDS)
+for _style, _tbl in EXTRA_PLACES.items():
+    for _kind, _raw in _tbl.items():
+        _cur = STYLES[_style]["places"].setdefault(_kind, [])
+        _cur.extend(x for x in _sfx(_raw) if x not in _cur)
+
 # 和風の自然な名字生成用テーブル
 WAFUU_FAMILY_PREFIXES = [
     "ao", "aka", "kuro", "shiro", "taka", "matsu", "sugi", "take",
@@ -479,6 +504,14 @@ def _too_similar(name, others):
         if _levenshtein(n, o) <= limit:
             return True
     return False
+
+
+_SMALL_KANA = set("ァィゥェォャュョッぁぃぅぇぉゃゅょっ")
+
+
+def _mora(kana: str) -> int:
+    """拍数 (ファ→2, シャ→1 のように小さいカナは数えない)"""
+    return sum(1 for ch in kana if ch not in _SMALL_KANA)
 
 
 def _valid(name, spec, min_len, max_len):
@@ -655,9 +688,23 @@ def place_names(
     sfxs = spec["places"][kind]
 
     def gen(r):
-        stem = _build_stem(spec, r, r.randint(1, 2))
-        suf, gloss = r.choice(sfxs)
-        return _join(stem, suf, spec), {"kind": kind, "suffix": suf, "suffix_meaning": gloss}
+        n_syl = r.randint(1, 2)
+        while True:
+            stem = _build_stem(spec, r, n_syl)
+            suf, gloss = r.choice(sfxs)
+            name = _join(stem, suf, spec)
+            root = name[: len(name) - len(suf)] if name.endswith(suf) else name
+            # 語幹が1拍だと「ロ砂漠」のようになるので、その場合だけ2音節でやり直す
+            if _mora(_kana(root or name, spec)) >= 2 or n_syl == 2:
+                break
+            n_syl = 2
+        term = (WAFUU_KIND_JA_TERM.get(kind) if style == "wafuu" else None) or KIND_JA_TERM[kind]
+        return name, {
+            "kind": kind,
+            "suffix": suf,
+            "suffix_meaning": gloss,
+            "ja_name": _kana(root or name, spec) + term,
+        }
 
     res = _collect(
         gen, count, spec, rng, _reserved_names() + list(avoid or []),
@@ -673,6 +720,110 @@ def place_names(
     }
     if len(res) < count:
         out["note"] += f" / {len(res)} 個しか作れませんでした"
+    return out
+
+
+def country_names(
+    style: str = "elf",
+    government: str = "kingdom",
+    count: int = 5,
+    seed: int | str | None = None,
+    starts_with: str | None = None,
+    min_len: int = 4,
+    max_len: int = 13,
+    avoid: list[str] | None = None,
+):
+    """国名。語幹+国名の語尾に、政体ごとの日本語/英語の正式名と元首の称号を添える。"""
+    spec = _get_style(style)
+    if government not in GOVERNMENTS:
+        raise ValueError(f"government must be one of: {', '.join(GOVERNMENTS)}")
+    gov = GOVERNMENTS[government]
+    endings = COUNTRY_ENDINGS[style]
+    count = _clamp_count(count)
+    seed, rng = _prep(seed)
+
+    def gen(r):
+        stem = _build_stem(spec, r, r.randint(1, 2))
+        return _join(stem, r.choice(endings), spec), {}
+
+    res = _collect(
+        gen, count, spec, rng, _reserved_names() + list(avoid or []),
+        starts_with, min_len, max_len
+    )
+    for e in res:
+        e["government"] = government
+        e["ja_name"] = e["kana"] + gov["ja"]
+        e["en_formal"] = gov["en"].format(e["name"])
+        e["ruler_title"] = gov["ruler"]
+    out = {"style": style, "government": government, "seed": seed, "names": res}
+    if len(res) < count:
+        out["note"] = f"{len(res)} 個しか作れませんでした"
+    return out
+
+
+def _wpick(r, seq):
+    """末尾の要素を重みとみなして seq から1つ選ぶ"""
+    return r.choices(seq, weights=[x[-1] for x in seq], k=1)[0]
+
+
+def _western_tavern(r, kind):
+    living = r.random() < 0.55
+    n_en, n_ja = r.choice(NOUN_LIVING if living else NOUN_OBJECT)
+    sfx_en, sfx_ja, _w = _wpick(r, TAVERN_SUFFIXES[kind])
+    pattern = r.choices(["adj", "and", "bare"], [55, 30, 15], k=1)[0]
+    words = {n_en}
+    if pattern == "adj":
+        a_en, a_ja = r.choice(ADJ_ANY + (ADJ_LIVING if living else []))
+        core_en, core_ja = f"{a_en} {n_en}", f"{a_ja}{n_ja}"
+    elif pattern == "and":
+        n2_en, n2_ja = r.choice([w for w in NOUN_LIVING + NOUN_OBJECT if w[0] != n_en])
+        words.add(n2_en)
+        core_en, core_ja = f"{n_en} and {n2_en}", f"{n_ja}と{n2_ja}"
+    else:
+        core_en, core_ja = n_en, n_ja
+    en = f"The {core_en}" + (f" {sfx_en}" if sfx_en else "")
+    return {"ja": core_ja + sfx_ja, "en": en, "kind": kind}, words
+
+
+def _wafuu_tavern(r, kind):
+    w_ja, w_ro = r.choice(WAFUU_WORDS)
+    sfx_ja, sfx_ro, _w = _wpick(r, WAFUU_TAVERN_SUFFIXES[kind])
+    return {"ja": w_ja + sfx_ja, "en": w_ro.capitalize() + sfx_ro, "kind": kind}, {w_ro}
+
+
+def tavern_names(
+    tone: str = "western",
+    kind: str = "any",
+    count: int = 5,
+    seed: int | str | None = None,
+    avoid: list[str] | None = None,
+):
+    """酒場・宿屋の屋号。西洋風は日英対訳 (酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字。"""
+    if tone not in ("western", "wafuu"):
+        raise ValueError("tone must be western / wafuu")
+    if kind not in ("any", "tavern", "inn"):
+        raise ValueError("kind must be any / tavern / inn")
+    count = _clamp_count(count)
+    seed, rng = _prep(seed)
+    taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
+    make = _western_tavern if tone == "western" else _wafuu_tavern
+    results, seen, used = [], set(), set()
+    tries = count * 200
+    for i in range(tries):
+        if len(results) >= count:
+            break
+        rec, words = make(rng, kind if kind != "any" else rng.choice(["tavern", "inn"]))
+        if rec["en"].lower() in taken or rec["ja"].lower() in taken or rec["en"].lower() in seen:
+            continue
+        # 前半は同じ単語(鹿など)を使い回さない。候補が尽きそうなら後半は許す
+        if i < tries * 0.3 and used & words:
+            continue
+        seen.add(rec["en"].lower())
+        used |= words
+        results.append(rec)
+    out = {"tone": tone, "seed": seed, "names": results}
+    if len(results) < count:
+        out["note"] = f"{len(results)} 個しか作れませんでした"
     return out
 
 
@@ -871,7 +1022,7 @@ def _build_server():
         ] = "elf",
         kind: Annotated[
             PlaceKindType,
-            Field(description="地名の種類: town (町・村), city (都市), mountain (山), river (川), forest (森), lake (湖), fortress (砦・城), kingdom (国)")
+            Field(description="地名の種類: town (町・村), city (都市), mountain (山), river (川), forest (森), lake (湖), fortress (砦・城), kingdom (国), plains (平原), desert (砂漠), wasteland (荒野), swamp (湿地), hills (丘陵), valley (谷), coast (海岸), sea (海), island (島), cave (洞窟), ruins (遺跡)")
         ] = "town",
         count: Annotated[
             int,
@@ -896,6 +1047,73 @@ def _build_server():
             count=count,
             seed=seed,
             starts_with=starts_with,
+            avoid=avoid,
+        )
+
+    @mcp.tool(description="国名を生成します。政体(王国・帝国・共和国・公国・連邦・教国・部族連合)ごとの日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返します。")
+    def generate_country_names(
+        style: Annotated[
+            StyleType,
+            Field(description="命名スタイル: elf / dwarf / human / orc / wafuu / arcane / southern")
+        ] = "elf",
+        government: Annotated[
+            GovernmentType,
+            Field(description="政体: kingdom (王国), empire (帝国), republic (共和国), duchy (公国), federation (連邦), theocracy (教国), tribal (部族連合)")
+        ] = "kingdom",
+        count: Annotated[
+            int,
+            Field(description="生成する名前の個数 (1〜50)", ge=1, le=50)
+        ] = 5,
+        seed: Annotated[
+            int | str | None,
+            Field(description="乱数シード。再現性に利用可能")
+        ] = None,
+        starts_with: Annotated[
+            str | None,
+            Field(description="国名の先頭文字列 (例: 'al', 'gro')")
+        ] = None,
+        avoid: Annotated[
+            list[str] | None,
+            Field(description="除外したい名前のリスト")
+        ] = None,
+    ) -> dict:
+        return country_names(
+            style=style,
+            government=government,
+            count=count,
+            seed=seed,
+            starts_with=starts_with,
+            avoid=avoid,
+        )
+
+    @mcp.tool(description="酒場・宿屋の屋号を生成します。西洋風は日英対訳(酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字(月見亭 / Tsukimitei)。")
+    def generate_tavern_names(
+        tone: Annotated[
+            TavernToneType,
+            Field(description="雰囲気: western (西洋風・日英対訳), wafuu (和風・漢字+ローマ字)")
+        ] = "western",
+        kind: Annotated[
+            TavernKindType,
+            Field(description="種別: any (酒場か宿屋をランダム), tavern (酒場), inn (宿屋)")
+        ] = "any",
+        count: Annotated[
+            int,
+            Field(description="生成する名前の個数 (1〜50)", ge=1, le=50)
+        ] = 5,
+        seed: Annotated[
+            int | str | None,
+            Field(description="乱数シード。再現性に利用可能")
+        ] = None,
+        avoid: Annotated[
+            list[str] | None,
+            Field(description="除外したい屋号のリスト (予約済みの名前は自動で除外されます)")
+        ] = None,
+    ) -> dict:
+        return tavern_names(
+            tone=tone,
+            kind=kind,
+            count=count,
+            seed=seed,
             avoid=avoid,
         )
 
@@ -1036,6 +1254,14 @@ def _demo():
             print(f"  {n['name']}{fam_str}  ({n['kana']}{fam_kana})  [{n['gender']}]")
         p = place_names(key, "town", 3, seed=1)
         print("  地名 (町):", ", ".join(f"{n['name']}({n['kana']}: {n['suffix_meaning']})" for n in p["names"]))
+        d = place_names(key, "desert", 2, seed=1)
+        print("  地名 (砂漠):", ", ".join(f"{n['name']}→{n['ja_name']}" for n in d["names"]))
+        c = country_names(key, "kingdom", 2, seed=1)
+        print("  国名:", ", ".join(f"{n['en_formal']}→{n['ja_name']}" for n in c["names"]))
+    print("\n[酒場・宿屋]")
+    for tone in ("western", "wafuu"):
+        t = tavern_names(tone, "any", 4, seed=1)
+        print(f"  {tone}:", ", ".join(f"{n['ja']} / {n['en']}" for n in t["names"]))
 
 
 def main():

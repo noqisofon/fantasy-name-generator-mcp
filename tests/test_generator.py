@@ -3,11 +3,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from fantasy_name_generator_mcp.extra_data import KIND_JA_TERM, WAFUU_KIND_JA_TERM
 from fantasy_name_generator_mcp.index import (
+    _mora,
     STYLES,
     PLACE_KINDS,
+    GOVERNMENTS,
     character_names,
+    country_names,
     place_names,
+    tavern_names,
     names_from_examples,
     reserve,
     list_reserved_names,
@@ -109,6 +114,59 @@ class TestFantasyNameGenerator(unittest.TestCase):
                 self.assertTrue("ぁ" <= ch <= "ん" or ch == "ー")
             for ch in item["family_kana"]:
                 self.assertTrue("ぁ" <= ch <= "ん" or ch == "ー")
+
+    def test_terrain_kinds_all_styles(self):
+        terrain = ["plains", "desert", "wasteland", "swamp", "hills", "valley",
+                   "coast", "sea", "island", "cave", "ruins"]
+        for style in STYLES:
+            for kind in terrain:
+                self.assertIn(kind, PLACE_KINDS)
+                res = place_names(style=style, kind=kind, count=3, seed=5)
+                self.assertEqual(len(res["names"]), 3, (style, kind))
+                for item in res["names"]:
+                    self.assertIn("ja_name", item)
+                    # 語幹が1拍だけの「ロ砂漠」のような呼び名を出さない
+                    term = (WAFUU_KIND_JA_TERM.get(kind) if style == "wafuu" else None) or KIND_JA_TERM[kind]
+                    self.assertTrue(item["ja_name"].endswith(term))
+                    root = item["ja_name"][: -len(term)]
+                    self.assertGreaterEqual(_mora(root), 2, (style, kind, item))
+
+    def test_place_ja_name(self):
+        item = place_names(style="southern", kind="desert", count=1, seed=3)["names"][0]
+        self.assertTrue(item["ja_name"].endswith("砂漠"))
+
+    def test_country_names(self):
+        for style in STYLES:
+            for gov, info in GOVERNMENTS.items():
+                res = country_names(style=style, government=gov, count=2, seed=8)
+                self.assertEqual(len(res["names"]), 2, (style, gov))
+                for item in res["names"]:
+                    self.assertTrue(item["ja_name"].endswith(info["ja"]))
+                    self.assertIn(item["name"], item["en_formal"])
+                    self.assertEqual(item["ruler_title"], info["ruler"])
+        with self.assertRaises(ValueError):
+            country_names(government="monarchy")
+
+    def test_tavern_names(self):
+        for tone in ("western", "wafuu"):
+            for kind in ("any", "tavern", "inn"):
+                res = tavern_names(tone=tone, kind=kind, count=6, seed=21)
+                self.assertEqual(len(res["names"]), 6)
+                self.assertEqual(len({n["en"] for n in res["names"]}), 6)
+                for n in res["names"]:
+                    self.assertTrue(n["ja"] and n["en"])
+        # 生き物にだけ合う形容詞を物に付けない (眠れるランタン等)
+        for n in tavern_names("western", "any", 50, seed=1)["names"]:
+            self.assertNotRegex(n["en"], r"(Sleeping|Drunken|Laughing|Dancing) (Lantern|Anchor|Barrel|Crown|Bell|Key)")
+        a = tavern_names("western", "inn", 5, seed=9)
+        b = tavern_names("western", "inn", 5, seed=9)
+        self.assertEqual(a["names"], b["names"])
+
+    def test_tavern_avoids_reserved(self):
+        first = tavern_names("wafuu", "inn", 3, seed=4)["names"]
+        reserve([n["ja"] for n in first])
+        again = tavern_names("wafuu", "inn", 3, seed=4)["names"]
+        self.assertFalse({n["ja"] for n in first} & {n["ja"] for n in again})
 
 
 if __name__ == "__main__":
