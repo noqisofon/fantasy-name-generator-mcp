@@ -35,12 +35,12 @@ python -m fantasy_name_generator_mcp --demo
 引数なしで起動すると MCP サーバーになりますが、サブコマンドを付けると、ターミナルから直接名前を生成できます。
 
 ```bash
-uv run fantasy-name-generator-mcp tavern -t western -k inn -n 5      # 西洋風の宿屋名
+uv run fantasy-name-generator-mcp tavern -t western -k inn -n 5       # 西洋風の宿屋名
 uv run fantasy-name-generator-mcp char -s wafuu -g male -n 5 --family # 和風の男性名(姓つき)
 uv run fantasy-name-generator-mcp place -s southern -k desert         # 南方風の砂漠の地名
-uv run fantasy-name-generator-mcp country -s human -n 10            # 国名 (政体は毎回ランダム)
+uv run fantasy-name-generator-mcp country -s human -n 10              # 国名 (政体は毎回ランダム)
 uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名に限定
-uv run fantasy-name-generator-mcp shop -k weapon -n 5                  # 武器屋の名前
+uv run fantasy-name-generator-mcp shop -k weapon -n 5                 # 武器屋の名前
 uv run fantasy-name-generator-mcp examples Santanyaan Maribel Marisol # 響きを学習して新しい名前
 uv run fantasy-name-generator-mcp styles                              # スタイル・種別・政体の一覧
 ```
