@@ -84,6 +84,79 @@ EXTRA_PLACES = {
 }
 
 # ---------------------------------------------------------------------------
+# 地名: decorate=True で混ぜる「型」の飾り語
+# ---------------------------------------------------------------------------
+# 「種類が前」の型 (海中都市 ニーン、など) で使う、種類ごとの言い換え語。(日本語, 英語)
+PLACE_KIND_SYNONYMS = {
+    "town": [("町", "Town"), ("集落", "Settlement"), ("里", "Hamlet"), ("郷", "Village")],
+    "city": [("都市", "City"), ("帝都", "Imperial Capital"), ("州都", "Provincial Capital"),
+             ("副都心", "Subcenter"), ("複合都市", "Complex City")],
+    "mountain": [("山脈", "Mountain Range"), ("霊峰", "Sacred Peak"), ("高峰", "Summit"),
+                 ("大山脈", "Great Range")],
+    "river": [("大河", "Great River"), ("水路", "Waterway"), ("運河", "Canal")],
+    "forest": [("森林", "Forest"), ("樹海", "Sea of Trees"), ("雲霧林", "Cloud Forest"),
+               ("聖林", "Sacred Grove")],
+    "lake": [("湖畔", "Lakeside"), ("沼", "Marsh"), ("水域", "Waters")],
+    "fortress": [("要塞", "Fortress"), ("城塞", "Citadel"), ("牙城", "Bastion")],
+    "kingdom": [("邦", "Realm"), ("属州", "Province"), ("委任統治領", "Mandate Territory"),
+                ("公国", "Principality")],
+    "plains": [("大草原", "Great Plain"), ("平原", "Plain"), ("草原地帯", "Grassland Belt")],
+    "desert": [("荒地", "Barrens"), ("不毛の地", "Barren Land")],
+    "wasteland": [("死地", "Deadlands"), ("廃棄の地", "Wasted Land")],
+    "swamp": [("大湿原", "Great Marsh"), ("沼沢地", "Bog")],
+    "hills": [("丘陵地帯", "Hill Country"), ("高地", "Highlands")],
+    "valley": [("峡谷", "Gorge"), ("大渓谷", "Great Canyon")],
+    "coast": [("沿海州", "Coastal Province"), ("岬", "Cape")],
+    "sea": [("海域", "Sea Zone"), ("暗礁海域", "Reef Waters")],
+    "island": [("諸島", "Archipelago"), ("列島", "Isles")],
+    "cave": [("洞窟群", "Cave Network"), ("龍脈穴", "Ley Cave")],
+    "ruins": [("廃墟", "Ruins"), ("遺構", "Remnant"), ("古墳", "Ancient Mound")],
+}
+# 方角・新旧の飾り (北◯◯、新◯◯)。日本語名の頭に直結する。(日本語, 英語)
+PLACE_DIRECTION_PREFIXES = [
+    ("北", "North"), ("南", "South"), ("東", "East"), ("西", "West"),
+    ("新", "New"), ("旧", "Old"), ("元", "Former"), ("奥", "Inner"),
+    ("近", "Near"), ("遠", "Far"), ("中", "Middle"), ("下", "Lower"),
+    ("外", "Outer"), ("上", "Upper"), ("前", "Old"),
+]
+# 雅語の異名 (悪魔の足跡、失われし遺跡、など)。対応する kind のときだけ混ざる。(日本語, ローマ字)
+PLACE_EPITHETS = {
+    "ruins": [
+        ("失われし遺跡", "Ushinawareshi Iseki"), ("枯れし神殿跡", "Kareshi Shinden Ato"),
+        ("忘れられた廃墟", "Wasurerareta Haikyo"), ("見放されし遺構", "Mihanasareshi Ikou"),
+    ],
+    "mountain": [
+        ("天への階段", "Ten e no Kaidan"), ("聖竜の顎", "Seiryuu no Ago"),
+        ("巨神の足跡", "Kyojin no Ashiato"), ("世界樹の根方", "Sekaiju no Nekata"),
+    ],
+    "cave": [
+        ("龍脈の穴", "Ryuumyaku no Ana"), ("虚空の淵", "Kokuu no Fuchi"),
+        ("地の底への梯子", "Chi no Soko e no Hashigo"),
+    ],
+    "forest": [
+        ("妖精の森", "Yousei no Mori"), ("魔人の森", "Majin no Mori"), ("女神の森", "Megami no Mori"),
+    ],
+    "fortress": [
+        ("女神の城塞", "Megami no Jousai"), ("紅蓮要塞", "Guren Yousai"), ("聖竜の牙城", "Seiryuu no Gajou"),
+    ],
+    "valley": [
+        ("聖竜の谷", "Seiryuu no Tani"), ("巨神の裂け目", "Kyojin no Sakeme"),
+    ],
+    "wasteland": [
+        ("見放されし大地", "Mihanasareshi Daichi"), ("枯れし荒野", "Kareshi Kouya"),
+    ],
+    "sea": [
+        ("凶妖の海", "Kyouyou no Umi"), ("暗礁の海域", "Anshou no Kaiiki"),
+    ],
+    "coast": [
+        ("嵐の岬", "Arashi no Misaki"),
+    ],
+    "island": [
+        ("見捨てられし島", "Misuterareshi Shima"),
+    ],
+}
+
+# ---------------------------------------------------------------------------
 # 国名
 # ---------------------------------------------------------------------------
 # 政体 -> ja=日本語の語 / en=英語の正式名テンプレート / ruler=元首の称号 / w=ランダム選択時の重み

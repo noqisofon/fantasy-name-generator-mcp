@@ -76,6 +76,38 @@ class TestFantasyNameGenerator(unittest.TestCase):
                 self.assertIn("suffix", item)
                 self.assertIn("suffix_meaning", item)
 
+    def test_place_names_decorate_patterns(self):
+        seen_patterns = set()
+        bad = []
+        for kind in PLACE_KINDS:
+            for style in ("elf", "human", "wafuu"):
+                res = place_names(style=style, kind=kind, count=25, seed=9, decorate=True)
+                self.assertEqual(len(res["names"]), 25, (style, kind))
+                for n in res["names"]:
+                    seen_patterns.add(n["pattern"])
+                    if not n["name"] or not n["ja_name"] or not n["kana"]:
+                        bad.append((style, kind, n))
+                    # 和風では「＝」で複数語をつなぐ型 (カタカナ風) は出さない
+                    if style == "wafuu":
+                        self.assertNotEqual(n["pattern"], "compound_join", n)
+        self.assertEqual(bad, [])
+        # 新しく足した型が実際に出る
+        for pat in ("type_first", "direction_prefix", "compound_join", "epithet_phrase"):
+            self.assertIn(pat, seen_patterns, pat)
+
+    def test_place_names_decorate_avoids_reserved_and_defaults_unchanged(self):
+        # decorate=False (既定) は今まで通り。suffix/suffix_meaning が必ず付く
+        plain = place_names(style="elf", kind="ruins", count=5, seed=2)
+        for n in plain["names"]:
+            self.assertIn("suffix", n)
+            self.assertIn("suffix_meaning", n)
+            self.assertNotIn("pattern", n)
+        # decorate=True でも予約・avoid は効く
+        first = place_names(style="elf", kind="ruins", count=10, seed=2, decorate=True)["names"]
+        reserve([n["name"] for n in first])
+        again = place_names(style="elf", kind="ruins", count=10, seed=2, decorate=True)["names"]
+        self.assertFalse({n["name"] for n in first} & {n["name"] for n in again})
+
     def test_names_from_examples(self):
         examples = ["Arthur", "Lancelot", "Gawain", "Percival", "Galahad", "Bedivere"]
         res = names_from_examples(examples=examples, count=3, seed=77)

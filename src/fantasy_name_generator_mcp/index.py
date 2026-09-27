@@ -63,6 +63,9 @@ from .extra_data import (
     KIND_JA_TERM,
     NOUN_LIVING,
     NOUN_OBJECT,
+    PLACE_DIRECTION_PREFIXES,
+    PLACE_EPITHETS,
+    PLACE_KIND_SYNONYMS,
     SHOP_GROUP_KIN,
     SHOP_LOCATIONS,
     SHOP_PATTERNS_WAFUU,
@@ -790,6 +793,26 @@ def character_names(
     return out
 
 
+def _place_stem(spec, r, kind, sfxs, style):
+    """語幹+接尾辞から (name, suf, gloss, kana_root, ja_name) を作る。
+    kana_root は接尾辞を含まない読みだけ (「種類が前」の型で使う)、
+    ja_name は接尾辞つきの完成形 (「ネマル砂漠」など)"""
+    n_syl = r.randint(1, 2)
+    while True:
+        stem = _build_stem(spec, r, n_syl)
+        suf, gloss = r.choice(sfxs)
+        name = _join(stem, suf, spec)
+        root = name[: len(name) - len(suf)] if name.endswith(suf) else name
+        # 語幹が1拍だと「ロ砂漠」のようになるので、その場合だけ2音節でやり直す
+        if _mora(_kana(root or name, spec)) >= 2 or n_syl == 2:
+            break
+        n_syl = 2
+    kana_root = _kana(root or name, spec)
+    # 和風は「machi=町」のように接尾辞ごとの漢字をそのまま使う (町なのに「村」になるのを防ぐ)
+    term = gloss if style == "wafuu" else KIND_JA_TERM[kind]
+    return name, suf, gloss, kana_root, kana_root + term
+
+
 def place_names(
     style: str = "elf",
     kind: str = "town",
@@ -800,7 +823,12 @@ def place_names(
     max_len: int = 14,
     avoid: list[str] | None = None,
     loose: bool = False,
+    decorate: bool = False,
 ) -> dict:
+    """地名。decorate=True にすると、いつもの語幹+接尾辞に加えて「型」が混ざる:
+    種類が前 (海中都市 ニーン)・方角や新旧の飾り (北◯◯、新◯◯)・
+    二つ名の複合 (ヨトニル＝マケトラナ市)・雅語の異名 (悪魔の足跡、失われし遺跡。
+    対応する kind のときだけ)。既定 (decorate=False) はこれまで通りの、いつもの語幹+接尾辞のみ。"""
     spec = _get_style(style)
     if kind not in PLACE_KINDS:
         raise ValueError(f"kind must be one of: {', '.join(PLACE_KINDS)}")
@@ -809,39 +837,109 @@ def place_names(
     sfxs = spec["places"][kind]
 
     def gen(r):
-        n_syl = r.randint(1, 2)
-        while True:
-            stem = _build_stem(spec, r, n_syl)
-            suf, gloss = r.choice(sfxs)
-            name = _join(stem, suf, spec)
-            root = name[: len(name) - len(suf)] if name.endswith(suf) else name
-            # 語幹が1拍だと「ロ砂漠」のようになるので、その場合だけ2音節でやり直す
-            if _mora(_kana(root or name, spec)) >= 2 or n_syl == 2:
-                break
-            n_syl = 2
-        # 和風は「machi=町」のように接尾辞ごとの漢字をそのまま使う (町なのに「村」になるのを防ぐ)
-        term = gloss if style == "wafuu" else KIND_JA_TERM[kind]
-        return name, {
-            "kind": kind,
-            "suffix": suf,
-            "suffix_meaning": gloss,
-            "ja_name": _kana(root or name, spec) + term,
-        }
+        name, suf, gloss, _kana_root, ja_name = _place_stem(spec, r, kind, sfxs, style)
+        return name, {"kind": kind, "suffix": suf, "suffix_meaning": gloss, "ja_name": ja_name}
 
-    res = _collect(
-        gen, count, spec, rng, _reserved_names() + list(avoid or []),
-        starts_with, min_len, max_len, loose=loose
-    )
+    if not decorate:
+        res = _collect(
+            gen, count, spec, rng, _reserved_names() + list(avoid or []),
+            starts_with, min_len, max_len, loose=loose
+        )
+        out = {
+            "style": style,
+            "kind": kind,
+            "kind_ja": PLACE_KIND_JA[kind],
+            "seed": seed,
+            "names": res,
+            "note": "suffix_meaning は各スタイル固定の設定表 (同じ接尾辞は常に同じ意味)。地名の世界内一貫性に使える",
+        }
+        if len(res) < count:
+            out["note"] += " / " + _shortfall_note(len(res), count, loose)
+        return out
+
+    # --- decorate=True: 種類が前・方角/新旧・複合名・雅語の異名を混ぜる ---
+    taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
+    epithets = PLACE_EPITHETS.get(kind) or []
+    kind_syns = PLACE_KIND_SYNONYMS.get(kind) or []
+    # 「＝」で複数語をつなぐ型はカタカナ風の名前向けなので、和風(ひらがな)では出さない
+    pat_weights = {"plain": 48, "direction_prefix": 14}
+    if style != "wafuu":
+        pat_weights["compound_join"] = 12
+    if kind_syns:
+        pat_weights["type_first"] = 16
+    if epithets:
+        pat_weights["epithet_phrase"] = 10
+    pat_names, pat_w = list(pat_weights), list(pat_weights.values())
+    sw = (starts_with or "").lower()
+
+    def gen_decorated(r):
+        pat = r.choices(pat_names, weights=pat_w, k=1)[0]
+        if pat == "epithet_phrase":
+            ph_ja, ph_ro = r.choice(epithets)
+            return ph_ro, {"kind": kind, "pattern": pat, "ja_name": ph_ja}
+        if pat == "compound_join":
+            n_parts = 3 if r.random() < 0.3 else 2
+            lead = [_build_stem(spec, r, r.randint(1, 2)) for _ in range(n_parts - 1)]
+            name_tail, suf, gloss, _kr, ja_tail = _place_stem(spec, r, kind, sfxs, style)
+            ja_name = "＝".join([_kana(s, spec) for s in lead] + [ja_tail])
+            name = "-".join(s.capitalize() for s in lead) + "-" + name_tail.capitalize()
+            return name, {
+                "kind": kind, "pattern": pat, "suffix": suf, "suffix_meaning": gloss,
+                "ja_name": ja_name, "_valid_tail": name_tail, "_valid_leads": lead,
+            }
+        name, suf, gloss, kana_root, ja_name = _place_stem(spec, r, kind, sfxs, style)
+        extra = {"kind": kind, "pattern": pat, "suffix": suf, "suffix_meaning": gloss, "ja_name": ja_name}
+        if pat == "type_first":
+            k_ja, _k_en = r.choice(kind_syns)
+            extra["ja_name"] = f"{k_ja} {kana_root}"
+        elif pat == "direction_prefix":
+            d_ja, _d_en = r.choice(PLACE_DIRECTION_PREFIXES)
+            extra["ja_name"] = d_ja + ja_name
+        return name, extra
+
+    results, seen = [], set()
+    tries = count * 250
+    for i in range(tries):
+        if len(results) >= count:
+            break
+        name, extra = gen_decorated(rng)
+        pat = extra.get("pattern", "plain")
+        key = name.lower()
+        if key in taken or key in seen:
+            continue
+        if sw and not (name.lower().startswith(sw) or extra["ja_name"].startswith(starts_with)):
+            continue
+        if pat == "epithet_phrase":
+            ok = True
+        elif pat == "compound_join":
+            leads = extra.pop("_valid_leads")
+            tail = extra.pop("_valid_tail")
+            ok = _valid(tail, spec, min_len, max_len) and all(_valid(s, spec, 2, 8) for s in leads)
+        else:
+            ok = (min_len <= len(name) <= max_len) and _valid(name, spec, min_len, max_len)
+        if not ok:
+            continue
+        seen.add(key)
+        if pat in ("compound_join", "epithet_phrase"):
+            entry = {"name": name, "kana": extra["ja_name"]}
+        else:
+            entry = {"name": name.capitalize(), "kana": _kana(name, spec)}
+        entry.update(extra)
+        results.append(entry)
+
     out = {
         "style": style,
         "kind": kind,
         "kind_ja": PLACE_KIND_JA[kind],
         "seed": seed,
-        "names": res,
-        "note": "suffix_meaning は各スタイル固定の設定表 (同じ接尾辞は常に同じ意味)。地名の世界内一貫性に使える",
+        "names": results,
+        "note": (
+            "suffix_meaning は各スタイル固定の設定表 (同じ接尾辞は常に同じ意味)。地名の世界内一貫性に使える。"
+            "decorate=True では pattern (plain/type_first/direction_prefix/compound_join/epithet_phrase) も返す"
+        ),
     }
-    if len(res) < count:
-        out["note"] += " / " + _shortfall_note(len(res), count, loose)
+    if len(results) < count:
+        out["note"] += " / " + _shortfall_note(len(results), count, loose)
     return out
 
 
@@ -1609,7 +1707,7 @@ def _build_server():
             avoid=avoid,
         )
 
-    @mcp.tool(description="地名を生成します。語幹+種別ごとの接尾辞(意味付き)により、世界観に一貫性のある地名を生成します。")
+    @mcp.tool(description="地名を生成します。語幹+種別ごとの接尾辞(意味付き)により、世界観に一貫性のある地名を生成します。decorate=True で、種類が前(海中都市 ニーン)・方角/新旧の飾り(北◯◯)・二つ名の複合(ヨトニル＝マケトラナ市)・雅語の異名(悪魔の足跡)などの型も混ぜられます。")
     def generate_place_names(
         style: Annotated[
             StyleType,
@@ -1635,6 +1733,10 @@ def _build_server():
             list[str] | None,
             Field(description="除外したい名前のリスト")
         ] = None,
+        decorate: Annotated[
+            bool,
+            Field(description="True で「種類が前」「方角/新旧」「二つ名の複合」「雅語の異名」などの型を混ぜる")
+        ] = False,
     ) -> dict:
         return place_names(
             style=style,
@@ -1643,6 +1745,7 @@ def _build_server():
             seed=seed,
             starts_with=starts_with,
             avoid=avoid,
+            decorate=decorate,
         )
 
     @mcp.tool(description="国名を生成します。政体は既定でランダム(any)で、王国・帝国・共和国のほか、司教領・精霊国・魔道邦・自治領・市国・協商邦・地下戦線などが出ます。日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返します。")

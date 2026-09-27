@@ -38,6 +38,7 @@ python -m fantasy_name_generator_mcp --demo
 uv run fantasy-name-generator-mcp tavern -t western -k inn -n 5       # 西洋風の宿屋名
 uv run fantasy-name-generator-mcp char -s wafuu -g male -n 5 --family # 和風の男性名(姓つき)
 uv run fantasy-name-generator-mcp place -s southern -k desert         # 南方風の砂漠の地名
+uv run fantasy-name-generator-mcp place -s human -k ruins --decorate  # 「失われし遺跡」のような型も混ぜる
 uv run fantasy-name-generator-mcp country -s human -n 10              # 国名 (政体は毎回ランダム)
 uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名に限定
 uv run fantasy-name-generator-mcp shop -k weapon -n 5                 # 武器屋の名前
@@ -48,7 +49,7 @@ uv run fantasy-name-generator-mcp styles                              # スタ�
 | コマンド                           | 内容                     | 主なオプション                                                                  |
 | :--------------------------------- | :----------------------- | :------------------------------------------------------------------------------ |
 | `char`                             | キャラクター名           | `-s` スタイル, `-g` 性別, `--family` 姓つき, `--starts-with`                    |
-| `place`                            | 地名                     | `-s` スタイル, `-k` 種別, `--starts-with`                                       |
+| `place`                            | 地名                     | `-s` スタイル, `-k` 種別, `--starts-with`, `--decorate` 型を混ぜる              |
 | `country`                          | 国名                     | `-s` スタイル, `--gov` 政体 (既定はランダム), `--plain` 型なし, `--starts-with` |
 | `tavern`                           | 酒場・宿屋の屋号         | `-t` 西洋風/和風, `-k` 酒場/宿屋, `-w` 擬人化の率, `-s` 人名の響き              |
 | `shop`                             | 店舗の名前               | `-k` 店の種類, `-t` 西洋風/和風, `-w` 詩的な形容詞の率, `-s` 人名の響き |
@@ -141,19 +142,30 @@ MCP 設定画面にて以下を追加します：
 ### 2. `generate_place_names`
 地名を生成します。
 
-| 引数          | 型                   | 既定値   | 説明             |
-| :------------ | :------------------- | :------- | :--------------- |
-| `style`       | `Literal`            | `"elf"`  | 命名スタイル     |
-| `kind`        | `Literal`            | `"town"` | 地名種別（下記） |
-| `count`       | `int`                | `5`      | 生成数 (1〜50)   |
-| `seed`        | `int \| str \| None` | `None`   | 乱数シード       |
-| `starts_with` | `str \| None`        | `None`   | 地名の頭文字指定 |
-| `avoid`       | `list[str] \| None`  | `None`   | 除外リスト       |
+| 引数          | 型                   | 既定値   | 説明                                        |
+| :------------ | :------------------- | :------- | :------------------------------------------ |
+| `style`       | `Literal`            | `"elf"`  | 命名スタイル                                |
+| `kind`        | `Literal`            | `"town"` | 地名種別（下記）                            |
+| `count`       | `int`                | `5`      | 生成数 (1〜50)                              |
+| `seed`        | `int \| str \| None` | `None`   | 乱数シード                                  |
+| `starts_with` | `str \| None`        | `None`   | 地名の頭文字指定                            |
+| `avoid`       | `list[str] \| None`  | `None`   | 除外リスト                                  |
+| `decorate`    | `bool`               | `False`  | `True` で「型」を混ぜる（下記、既定は無効） |
 
 地名種別: `town`(町・村) / `city`(都市) / `mountain`(山) / `river`(川) / `forest`(森) / `lake`(湖) / `fortress`(砦・城) / `kingdom`(国) /
 `plains`(平原) / `desert`(砂漠) / `wasteland`(荒野) / `swamp`(湿地) / `hills`(丘陵) / `valley`(谷) / `coast`(海岸) / `sea`(海) / `island`(島) / `cave`(洞窟) / `ruins`(遺跡)
 
 各地名には、接尾辞とその意味 (`suffix`, `suffix_meaning`) に加えて、日本語の呼び名 `ja_name`（例: `Nidilsahra` → 「ニディル砂漠」）が付きます。
+
+`decorate=True` にすると、いつもの「語幹+接尾辞」に加えて次のような型も混ざります（対応する `kind` のときだけ出るものもあります）。
+
+| 型             | 例                                     |
+| :------------- | :-------------------------------------- |
+| いつもの型     | ニディル砂漠                            |
+| 種類が前       | 遺構 ソジャ / 州都 ザス                 |
+| 方角・新旧     | 北クラズ洞窟 / 新ほそ町                 |
+| 二つ名の複合   | メラル＝ハル遺跡（和風では出ません）    |
+| 雅語の異名     | 失われし遺跡 / 天への階段 / 龍脈の穴    |
 
 ### 3. `generate_country_names`
 国名を生成します。政体は既定でランダム (`any`) で、王国・帝国・共和国だけでなく、司教領・精霊国・魔道邦・自治領・市国・協商邦・地下戦線・誓約など 36 種類が出ます。日本語名 (`ja_name`)・英語の正式名 (`en_formal`)・元首の称号 (`ruler_title`) を返します。

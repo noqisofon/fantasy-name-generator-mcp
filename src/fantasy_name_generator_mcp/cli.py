@@ -103,6 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="地名の種別 (既定 town): " + " / ".join(PLACE_KINDS))
     pl.add_argument("--starts-with", metavar="文字列", help="先頭の文字列")
     pl.add_argument("--loose", action="store_true", help=LOOSE_HELP)
+    pl.add_argument("--decorate", action="store_true",
+                    help="「種類が前」「方角/新旧」「二つ名の複合」「雅語の異名」などの型も混ぜる")
 
     co = sub.add_parser("country", parents=[_common()], help="国名 (政体つき)")
     co.add_argument("-s", "--style", choices=styles, default="elf", help="スタイル (既定 elf)")
@@ -183,7 +185,12 @@ def _fmt_char(n: dict) -> str:
 
 
 def _fmt_place(n: dict) -> str:
-    return f"{n['name']}  ({n['kana']})  {n['ja_name']}   -{n['suffix']}: {n['suffix_meaning']}"
+    base = f"{n['name']}  ({n['kana']})  {n['ja_name']}"
+    if "suffix" in n:
+        base += f"   -{n['suffix']}: {n['suffix_meaning']}"
+    if n.get("pattern") and n["pattern"] != "plain":
+        base += f"   [{n['pattern']}]"
+    return base
 
 
 def _fmt_country(n: dict) -> str:
@@ -274,7 +281,7 @@ def run(argv: list[str] | None = None) -> int:
             return _emit(r, args, _fmt_char)
         elif cmd == "place":
             r = place_names(args.style, args.kind, args.count, args.seed, args.starts_with,
-                            avoid=args.avoid, loose=args.loose)
+                            avoid=args.avoid, loose=args.loose, decorate=args.decorate)
             return _emit(r, args, _fmt_place)
         elif cmd == "country":
             r = country_names(args.style, args.government, args.count, args.seed,
