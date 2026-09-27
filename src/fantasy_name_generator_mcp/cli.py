@@ -17,6 +17,7 @@ from .index import (
     GOVERNMENTS,
     PLACE_KIND_JA,
     PLACE_KINDS,
+    SHOP_TYPES,
     STYLES,
     character_names,
     country_names,
@@ -26,6 +27,7 @@ from .index import (
     release,
     reserve,
     styles_overview,
+    shop_names,
     tavern_names,
 )
 
@@ -39,6 +41,8 @@ EPILOG = f"""\
   {PROG} country -s human --gov empire -n 3       西洋風の帝国名に限定
   {PROG} tavern -t western -k inn                 西洋風の宿屋名
   {PROG} tavern -t western -w 1 -n 30             擬人化を多めに (眠らざるランタン亭など)
+  {PROG} shop -k weapon -n 5                       武器屋の名前
+  {PROG} shop -t wafuu -n 10                       和風の店名 (種類はランダム)
   {PROG} examples Santanyaan Maribel Marisol      既存の名前に響きを寄せて新しい名前を作る
   {PROG} reserve "金の竜亭" --note 主人公の常宿    採用した名前を予約(以後の生成で重複回避)
   {PROG} char -s elf --seed 42 --json             同じ seed なら同じ結果 / JSON で出力
@@ -121,6 +125,17 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("-s", "--style", choices=styles, default="human",
                    help="屋号に入る人名の響き (既定 human)")
 
+    sh = sub.add_parser("shop", parents=[_common()], help="店舗の名前 (武器屋・道具屋・薬屋など)")
+    sh.add_argument("-k", "--kind", choices=["any", *SHOP_TYPES], default="any", metavar="種類",
+                    help="店の種類 (既定 any = ランダム)。weapon, armor, general, potion, magic, ... "
+                         "全一覧は `styles` コマンドで確認")
+    sh.add_argument("-t", "--tone", choices=["western", "wafuu"], default="western",
+                    help="雰囲気 (既定 western)")
+    sh.add_argument("-w", "--whimsy", type=float, default=0.25, metavar="0〜1",
+                    help="詩的な形容詞が混ざる率 (既定 0.25。西洋風のみ)")
+    sh.add_argument("-s", "--style", choices=styles, default="human",
+                    help="店名に入る人名の響き (既定 human)")
+
     ex = sub.add_parser("examples", parents=[_common()],
                         help="既存の名前から響きを学習して新しい名前を作る")
     ex.add_argument("names", nargs="+", metavar="名前", help="お手本の名前 (3個以上、10個以上推奨)")
@@ -179,6 +194,10 @@ def _fmt_tavern(n: dict) -> str:
     return f"{n['ja']}  /  {n['en']}   [{TAVERN_KIND_JA.get(n['kind'], n['kind'])}]"
 
 
+def _fmt_shop(n: dict) -> str:
+    return f"{n['ja']}  /  {n['en']}   [{n['shop_type_ja']}]"
+
+
 def _fmt_example(n: dict) -> str:
     return n["name"] + (f"  ({n['kana']})" if "kana" in n else "")
 
@@ -227,6 +246,8 @@ def _run_styles(args) -> None:
         print(f"  {s['style']:9} {s['label']}  例: {', '.join(s['samples'])}")
     print("\n[地名の種別]  (place -k)")
     print("  " + " / ".join(f"{k}({PLACE_KIND_JA[k]})" for k in PLACE_KINDS))
+    print("\n[店の種類]  (shop -k。any=ランダム)")
+    print("  " + " / ".join(f"{k}({v['label']})" for k, v in SHOP_TYPES.items()))
     print("\n[政体]  (country --gov。any=ランダム)")
     print("  " + " / ".join(f"{k}({v['ja']})" for k, v in GOVERNMENTS.items()))
 
@@ -264,6 +285,10 @@ def run(argv: list[str] | None = None) -> int:
             r = tavern_names(args.tone, args.kind, args.count, args.seed, args.avoid, args.whimsy,
                              args.style)
             return _emit(r, args, _fmt_tavern)
+        elif cmd == "shop":
+            r = shop_names(args.kind, args.tone, args.count, args.seed, args.avoid, args.whimsy,
+                           args.style)
+            return _emit(r, args, _fmt_shop)
         elif cmd == "examples":
             r = names_from_examples(args.names, args.count, args.seed, args.order, avoid=args.avoid)
             return _emit(r, args, _fmt_example)

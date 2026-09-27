@@ -40,6 +40,7 @@ uv run fantasy-name-generator-mcp char -s wafuu -g male -n 5 --family # 和風�
 uv run fantasy-name-generator-mcp place -s southern -k desert         # 南方風の砂漠の地名
 uv run fantasy-name-generator-mcp country -s human -n 10            # 国名 (政体は毎回ランダム)
 uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名に限定
+uv run fantasy-name-generator-mcp shop -k weapon -n 5                  # 武器屋の名前
 uv run fantasy-name-generator-mcp examples Santanyaan Maribel Marisol # 響きを学習して新しい名前
 uv run fantasy-name-generator-mcp styles                              # スタイル・種別・政体の一覧
 ```
@@ -50,6 +51,7 @@ uv run fantasy-name-generator-mcp styles                              # スタ�
 | `place`                            | 地名                     | `-s` スタイル, `-k` 種別, `--starts-with`                                       |
 | `country`                          | 国名                     | `-s` スタイル, `--gov` 政体 (既定はランダム), `--plain` 型なし, `--starts-with` |
 | `tavern`                           | 酒場・宿屋の屋号         | `-t` 西洋風/和風, `-k` 酒場/宿屋, `-w` 擬人化の率, `-s` 人名の響き              |
+| `shop`                             | 店舗の名前               | `-k` 店の種類, `-t` 西洋風/和風, `-w` 詩的な形容詞の率, `-s` 人名の響き |
 | `examples`                         | 既存の名前から新しい名前 | 名前を3個以上, `--order`                                                        |
 | `reserve` / `reserved` / `release` | 予約の追加・一覧・解除   | `--note`                                                                        |
 | `styles`                           | スタイル等の一覧と見本   |                                                                                 |
@@ -210,7 +212,34 @@ MCP 設定画面にて以下を追加します：
 
 形容詞は「生き物にだけ合うもの（酔いどれ・眠れる…）」と「何にでも合うもの（錆びた・銀の…）」に分けてあります。物には基本的に前者を付けませんが、`whimsy` の確率で擬人化を許し、「眠れるランタン亭」「眠らざるランタン亭」のような詩的な屋号を出します（`0` で無効）。単語表は `extra_data.py` にあり、語を足せばそのまま生成に反映されます。和風のローマ字は、漢字の音読みを機械的に当てたもので、読みの目安です。
 
-### 5. `generate_names_from_examples`
+### 5. `generate_shop_names`
+店舗（武器屋・防具屋・道具屋・薬屋・魔道具店・鍛冶屋・宝石店・書店・パン屋など 19 種類）の店名を生成します。西洋風は日英対訳（「狼の牙武具店 / The Wolf's Fang Armory」）、和風は漢字+ローマ字（「琥珀森武具店 / Kohakushin Bugu-ten」）です。
+
+| 引数        | 型                   | 既定値      | 説明                                                                 |
+| :---------- | :------------------- | :---------- | :------------------------------------------------------------------- |
+| `shop_type` | `Literal`            | `"any"`     | 店の種類。`any` はランダム。`weapon` (武器屋)、`potion` (薬屋)、`magic` (魔道具店) など |
+| `tone`      | `Literal`            | `"western"` | 雰囲気 (`western` 西洋風 / `wafuu` 和風)                             |
+| `count`     | `int`                | `5`         | 生成数 (1〜50)                                                       |
+| `seed`      | `int \| str \| None` | `None`      | 乱数シード                                                           |
+| `avoid`     | `list[str] \| None`  | `None`      | 除外リスト（予約済みの店名は自動除外）                               |
+| `whimsy`    | `float`              | `0.25`      | 詩的な形容詞が混ざる率 (0〜1)。西洋風のみ                            |
+| `style`     | `Literal`            | `"human"`   | 店名に入る人名の響き                                                 |
+
+| 型 | 例 |
+| :-- | :-- |
+| 形容詞+生き物の店 | けなげな熊の宝石店 / The Devoted Bear Jeweler |
+| 生き物の品の店 | 村民の宝冠宝石店 / 天狗の原石宝石店 |
+| 生き物の店 | 狐の古書店 |
+| 品の店 | 苔の薬草店 / 巻物の本屋 |
+| 人名の店 | ネッテの八百屋 / Nette's Greengrocer |
+| 人名+親族の店 | シセルトおばあの花店 / Granny Sisert's Flower Shop |
+| 種類が前 | 魔道具店 お堅い鹿 / 質屋 華天 |
+| 漢字二字 | 朧氷魔法店 / 紅鷹骨董品店 |
+| 抽象語の店 | 雨宿りの花店 / 夜明けの仕立て屋 |
+
+店の種類ごとに「その店の品」（武器屋なら牙・爪・刃、薬屋なら雫・瓶・軟膏…）と、店名の語（武器屋 / 武器店 / 武具店 / 刃物店…）を持っています。表は `extra_data.py` の `SHOP_TYPES` にあり、行を足すとツールの選択肢にも自動で反映されます。
+
+### 6. `generate_names_from_examples`
 既存の名前リストからマルコフ連鎖で「同じ世界っぽい」名前を生成します。
 
 | 引数       | 型                   | 既定値   | 説明                                     |
@@ -223,12 +252,12 @@ MCP 設定画面にて以下を追加します：
 
 漢字やカナの例（「織田信長」など）も渡せます。2〜4 文字の短い名前は、次数を `1` にすると安定して新しい組み合わせが出ます。ローマ字の例にはカナ表記 (`kana`) が付きますが、漢字・カナの例には付きません。
 
-### 6. `reserve_names` / `list_reserved` / `release_names`
+### 7. `reserve_names` / `list_reserved` / `release_names`
 - `reserve_names(names, note)`: 採用した名前を予約リストに記録（重複回避用）。
 - `list_reserved()`: 予約済みの名前一覧を取得。
 - `release_names(names)`: 予約を解除。
 
-### 7. `list_styles`
+### 8. `list_styles`
 利用可能なスタイル一覧とサンプルのプレビューを返します。
 
 ---

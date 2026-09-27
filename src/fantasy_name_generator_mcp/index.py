@@ -63,6 +63,9 @@ from .extra_data import (
     KIND_JA_TERM,
     NOUN_LIVING,
     NOUN_OBJECT,
+    SHOP_PATTERNS_WAFUU,
+    SHOP_PATTERNS_WESTERN,
+    SHOP_TYPES,
     TAVERN_ABSTRACT,
     TAVERN_ACTS,
     TAVERN_KIN,
@@ -87,6 +90,8 @@ PlaceKindType = Literal[
 ]
 # "any"(ランダム) + extra_data.GOVERNMENTS の全政体。表に政体を足すと enum も自動で増える
 GovernmentType = Literal[("any", *GOVERNMENTS)]  # type: ignore[valid-type]
+# "any"(ランダム) + extra_data.SHOP_TYPES の全種類。表に店の種類を足すと enum も自動で増える
+ShopType = Literal[("any", *SHOP_TYPES)]  # type: ignore[valid-type]
 TavernToneType = Literal["western", "wafuu"]
 TavernKindType = Literal["any", "tavern", "inn"]
 
@@ -1161,6 +1166,153 @@ def tavern_names(
     return out
 
 
+def _shop_western(r, shop_type, whimsy=0.25, spec=None):
+    """西洋風の店名。日本語(ja)と英語(en)の対訳を返す"""
+    spec = spec or STYLES["human"]
+    st = SHOP_TYPES[shop_type]
+    t_ja, t_en, _ro = r.choice(st["names"])
+    pat = _pick_pattern(r, SHOP_PATTERNS_WESTERN)
+
+    def adj_creature():
+        c_en, c_ja = r.choice(NOUN_LIVING)
+        pool = ADJ_ANY + ADJ_LIVING + (ADJ_POETIC if r.random() < whimsy else [])
+        a_en, a_ja = r.choice(pool)
+        return a_en, a_ja, c_en, c_ja
+
+    if pat == "adj_creature":
+        a_en, a_ja, c_en, c_ja = adj_creature()
+        words, ja, en = {c_en}, f"{a_ja}{c_ja}の{t_ja}", f"The {a_en} {c_en} {t_en}"
+    elif pat == "creature_good":
+        c_en, c_ja = r.choice(NOUN_LIVING)
+        g_ja, g_en, _g = r.choice(st["goods"])
+        words, ja, en = {c_en}, f"{c_ja}の{g_ja}{t_ja}", f"The {c_en}'s {g_en} {t_en}"
+    elif pat == "creature_shop":
+        c_en, c_ja = r.choice(NOUN_LIVING)
+        words, ja, en = {c_en}, f"{c_ja}の{t_ja}", f"The {c_en} {t_en}"
+    elif pat == "good_shop":
+        g_ja, g_en, _g = r.choice(st["goods"])
+        words, ja, en = {g_en}, f"{g_ja}の{t_ja}", f"The {g_en} {t_en}"
+    elif pat == "person_shop":
+        n_en, n_ja = _person(r, spec)
+        words, ja, en = {n_en}, f"{n_ja}の{t_ja}", f"{n_en}'s {t_en}"
+    elif pat == "person_kin":
+        n_en, n_ja = _person(r, spec)
+        k_ja, k_en, _k = r.choice(TAVERN_KIN)
+        words, ja, en = {n_en}, f"{n_ja}{k_ja}の{t_ja}", f"{k_en} {n_en}'s {t_en}"
+    elif pat == "type_first":
+        src = r.choices(["adj", "person", "abstract"], [55, 30, 15], k=1)[0]
+        if src == "adj":
+            a_en, a_ja, c_en, c_ja = adj_creature()
+            words, ja, en = {c_en}, f"{t_ja} {a_ja}{c_ja}", f"The {a_en} {c_en} {t_en}"
+        elif src == "person":
+            n_en, n_ja = _person(r, spec)
+            words, ja, en = {n_en}, f"{t_ja} {n_ja}", f"{n_en}'s {t_en}"
+        else:
+            b_ja, b_en, _b = r.choice(TAVERN_ABSTRACT)
+            words, ja, en = {b_en}, f"{t_ja} {b_ja}", f"The {b_en} {t_en}"
+    elif pat == "kanji":
+        a_ja, a_en, _a = r.choice(KANJI_A)
+        b_ja, b_en, _b = r.choice(KANJI_B)
+        comp = b_ja + a_ja if (a_ja in KANJI_COLORS and r.random() < 0.2) else a_ja + b_ja
+        words, ja, en = {comp}, f"{comp}{t_ja}", f"The {a_en} {b_en} {t_en}"
+    else:  # abstract
+        b_ja, b_en, _b = r.choice(TAVERN_ABSTRACT)
+        words, ja, en = {b_en}, f"{b_ja}の{t_ja}", f"The {b_en} {t_en}"
+    return {"ja": ja, "en": en, "shop_type": shop_type, "shop_type_ja": st["label"], "pattern": pat}, words
+
+
+def _shop_wafuu(r, shop_type, whimsy=0.25, spec=None):
+    """和風の店名。漢字表記(ja)とローマ字(en)を返す"""
+    spec = spec or STYLES["human"]
+    st = SHOP_TYPES[shop_type]
+    t_ja, _t_en, t_ro = r.choice(st["names"])
+    T = t_ro.capitalize()
+    pat = _pick_pattern(r, SHOP_PATTERNS_WAFUU)
+    if pat == "creature_shop":
+        c_ja, c_ro = r.choice(WAFUU_CREATURES)
+        words, ja, en = {c_ro}, f"{c_ja}の{t_ja}", f"{c_ro.capitalize()} no {T}"
+    elif pat == "creature_good":
+        c_ja, c_ro = r.choice(WAFUU_CREATURES)
+        g_ja, _g_en, g_ro = r.choice(st["goods"])
+        words, ja, en = {c_ro}, f"{c_ja}の{g_ja}{t_ja}", f"{c_ro.capitalize()} no {g_ro.capitalize()} {T}"
+    elif pat == "good_shop":
+        g_ja, _g_en, g_ro = r.choice(st["goods"])
+        words, ja, en = {g_ro}, f"{g_ja}の{t_ja}", f"{g_ro.capitalize()} no {T}"
+    elif pat == "person_shop":
+        n_en, n_ja = _person(r, spec)
+        words, ja, en = {n_en}, f"{n_ja}の{t_ja}", f"{n_en} no {T}"
+    elif pat == "person_kin":
+        n_en, n_ja = _person(r, spec)
+        k_ja, _k_en, k_ro = r.choice(TAVERN_KIN)
+        words, ja, en = {n_en}, f"{n_ja}{k_ja}の{t_ja}", f"{n_en} {k_ro} no {T}"
+    elif pat == "type_first":
+        src = r.choices(["word", "kanji", "abstract", "person"], [35, 30, 15, 20], k=1)[0]
+        if src == "word":
+            p_ja, p_ro = r.choice(WAFUU_WORDS)
+            p_ro = p_ro.capitalize()
+        elif src == "kanji":
+            a_ja, _a, a_ro = r.choice(KANJI_A)
+            b_ja, _b, b_ro = r.choice(KANJI_B)
+            p_ja, p_ro = a_ja + b_ja, (a_ro + b_ro).capitalize()
+        elif src == "abstract":
+            p_ja, _e, p_ro = r.choice(TAVERN_ABSTRACT)
+            p_ro = p_ro.title()
+        else:
+            p_ro, p_ja = _person(r, spec)
+        words, ja, en = {p_ja}, f"{t_ja} {p_ja}", f"{T} {p_ro}"
+    elif pat == "kanji":
+        a_ja, _a, a_ro = r.choice(KANJI_A)
+        b_ja, _b, b_ro = r.choice(KANJI_B)
+        comp = a_ja + b_ja
+        words, ja, en = {comp}, f"{comp}{t_ja}", f"{(a_ro + b_ro).capitalize()} {T}"
+    else:  # abstract
+        b_ja, _b_en, b_ro = r.choice(TAVERN_ABSTRACT)
+        words, ja, en = {b_ro}, f"{b_ja}の{t_ja}", f"{b_ro.title()} no {T}"
+    return {"ja": ja, "en": en, "shop_type": shop_type, "shop_type_ja": st["label"], "pattern": pat}, words
+
+
+def shop_names(
+    shop_type: str = "any",
+    tone: str = "western",
+    count: int = 5,
+    seed: int | str | None = None,
+    avoid: list[str] | None = None,
+    whimsy: float = 0.25,
+    style: str = "human",
+) -> dict:
+    """店舗 (武器屋・防具屋・道具屋・薬屋・魔道具店・鍛冶屋・書店・パン屋など) の店名。
+    西洋風は日英対訳 (狼の牙武具店 / The Wolf's Fang Armory)、和風は漢字+ローマ字。
+    店の種類ごとの「品」や、人名 (ダルトンの武器屋)・親族 (バーブラおばあの薬屋)・種類が前 (道具屋 ミーチャ) などの型を混ぜる。"""
+    if shop_type != "any" and shop_type not in SHOP_TYPES:
+        raise ValueError(f"shop_type must be 'any' or one of: {', '.join(SHOP_TYPES)}")
+    if tone not in ("western", "wafuu"):
+        raise ValueError("tone must be western / wafuu")
+    spec = _get_style(style)
+    count = _clamp_count(count)
+    seed, rng = _prep(seed)
+    taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
+    whimsy = max(0.0, min(float(whimsy), 1.0))
+    make = _shop_western if tone == "western" else _shop_wafuu
+    types = list(SHOP_TYPES)
+    results, seen, used = [], set(), set()
+    tries = count * 200
+    for i in range(tries):
+        if len(results) >= count:
+            break
+        rec, words = make(rng, shop_type if shop_type != "any" else rng.choice(types), whimsy, spec)
+        if rec["en"].lower() in taken or rec["ja"].lower() in taken or rec["en"].lower() in seen:
+            continue
+        if i < tries * 0.3 and used & words:  # 前半は同じ単語(狼など)を使い回さない
+            continue
+        seen.add(rec["en"].lower())
+        used |= words
+        results.append(rec)
+    out = {"tone": tone, "shop_type": shop_type, "seed": seed, "names": results}
+    if len(results) < count:
+        out["note"] = f"{len(results)} 個しか作れませんでした"
+    return out
+
+
 def names_from_examples(
     examples: list[str],
     count: int = 5,
@@ -1289,6 +1441,7 @@ def styles_overview() -> dict:
         "styles": out,
         "place_kinds": PLACE_KIND_JA,
         "governments": {k: v["ja"] for k, v in GOVERNMENTS.items()},
+        "shop_types": {k: v["label"] for k, v in SHOP_TYPES.items()},
     }
 
 
@@ -1464,6 +1617,47 @@ def _build_server():
         return tavern_names(
             tone=tone,
             kind=kind,
+            count=count,
+            seed=seed,
+            avoid=avoid,
+            whimsy=whimsy,
+            style=style,
+        )
+
+    @mcp.tool(description="店舗(武器屋・防具屋・道具屋・薬屋・魔道具店・鍛冶屋・宝石店・書店・パン屋・八百屋・仕立て屋・骨董品店・質屋・花屋など)の店名を生成します。西洋風は日英対訳(狼の牙武具店 / The Wolf's Fang Armory)、和風は漢字+ローマ字。店の種類ごとの品(牙・雫・杖など)、人名(ダルトンの武器屋)、親族つき(バーブラおばあの薬屋)、種類が前(道具屋 ミーチャ)などの型が混ざります。")
+    def generate_shop_names(
+        shop_type: Annotated[
+            ShopType,
+            Field(description="店の種類。any (既定・ランダム) か、weapon (武器屋), armor (防具屋), general (道具屋・雑貨店), potion (薬屋), magic (魔道具店), blacksmith (鍛冶屋), jeweler (宝石店), book (書店), bakery (パン屋), grocer (八百屋), butcher (肉屋), fishmonger (魚屋), tailor (仕立て屋), herbalist (薬草店), antiques (骨董品店), pawn (質屋), florist (花屋), chandler (蝋燭店), cartographer (地図屋)")
+        ] = "any",
+        tone: Annotated[
+            TavernToneType,
+            Field(description="雰囲気: western (西洋風・日英対訳), wafuu (和風・漢字+ローマ字)")
+        ] = "western",
+        count: Annotated[
+            int,
+            Field(description="生成する名前の個数 (1〜50)", ge=1, le=50)
+        ] = 5,
+        seed: Annotated[
+            int | str | None,
+            Field(description="乱数シード。再現性に利用可能")
+        ] = None,
+        avoid: Annotated[
+            list[str] | None,
+            Field(description="除外したい店名のリスト (予約済みの名前は自動で除外されます)")
+        ] = None,
+        whimsy: Annotated[
+            float,
+            Field(description="詩的な形容詞(眠らざる〜など)が混ざる率 0〜1 (既定0.25)。西洋風のみ", ge=0.0, le=1.0)
+        ] = 0.25,
+        style: Annotated[
+            StyleType,
+            Field(description="店名に入る人名(「ダルトンの武器屋」など)の響き。既定 human")
+        ] = "human",
+    ) -> dict:
+        return shop_names(
+            shop_type=shop_type,
+            tone=tone,
             count=count,
             seed=seed,
             avoid=avoid,

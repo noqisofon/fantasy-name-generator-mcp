@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from fantasy_name_generator_mcp.cli import run as cli_run
-from fantasy_name_generator_mcp.extra_data import ADJ_LIVING, ADJ_POETIC, KIND_JA_TERM, NOUN_OBJECT
+from fantasy_name_generator_mcp.extra_data import ADJ_LIVING, ADJ_POETIC, KIND_JA_TERM, NOUN_OBJECT, SHOP_TYPES
 from fantasy_name_generator_mcp.index import (
     MAX_COUNT,
     _SimIndex,
@@ -20,6 +20,7 @@ from fantasy_name_generator_mcp.index import (
     character_names,
     country_names,
     place_names,
+    shop_names,
     tavern_names,
     names_from_examples,
     reserve,
@@ -343,7 +344,7 @@ class TestFantasyNameGenerator(unittest.TestCase):
         self.assertGreater(len(taken), 20)
 
     def test_count_limits_raise_instead_of_silent_clamp(self):
-        for fn in (character_names, place_names, country_names, tavern_names):
+        for fn in (character_names, place_names, country_names, tavern_names, shop_names):
             with self.assertRaises(ValueError):
                 fn(count=0)
             with self.assertRaises(ValueError):
@@ -375,6 +376,51 @@ class TestFantasyNameGenerator(unittest.TestCase):
         self.assertIn("count は", err)
         code, _out, err = self._cli("char", "-n", str(MAX_COUNT + 1))
         self.assertEqual(code, 2)
+
+    # --- 店舗 ---
+    def test_shop_names_all_types_and_tones(self):
+        for tone in ("western", "wafuu"):
+            for shop_type, info in SHOP_TYPES.items():
+                res = shop_names(shop_type=shop_type, tone=tone, count=4, seed=6)
+                self.assertEqual(len(res["names"]), 4, (tone, shop_type))
+                for n in res["names"]:
+                    self.assertEqual(n["shop_type"], shop_type)
+                    self.assertEqual(n["shop_type_ja"], info["label"])
+                    self.assertTrue(n["ja"] and n["en"] and n["pattern"])
+                    # 店の語 (武器屋・武器店…) のどれかが必ず入る
+                    self.assertTrue(any(w[0] in n["ja"] for w in info["names"]), n)
+
+    def test_shop_names_are_varied_and_well_formed(self):
+        res = shop_names("any", "western", 50, seed=4)["names"]
+        self.assertEqual(len(res), 50)
+        self.assertGreaterEqual(len({n["pattern"] for n in res}), 6)
+        self.assertGreaterEqual(len({n["shop_type"] for n in res}), 12)
+        bad = []
+        for seed in range(30):
+            for tone in ("western", "wafuu"):
+                for n in shop_names("any", tone, 10, seed=seed)["names"]:
+                    if n["en"].endswith("'s") or "  " in n["en"] or n["en"].startswith("The The"):
+                        bad.append(n["en"])
+        self.assertEqual(bad, [])
+
+    def test_shop_names_errors_and_reserved(self):
+        with self.assertRaises(ValueError):
+            shop_names(shop_type="spaceport")
+        with self.assertRaises(ValueError):
+            shop_names(tone="gothic")
+        first = shop_names("weapon", "wafuu", 3, seed=4)["names"]
+        reserve([n["ja"] for n in first])
+        again = shop_names("weapon", "wafuu", 3, seed=4)["names"]
+        self.assertFalse({n["ja"] for n in first} & {n["ja"] for n in again})
+
+    def test_cli_shop(self):
+        code, out, _err = self._cli("shop", "-k", "weapon", "-n", "5", "--seed", "1")
+        lines = out.strip().splitlines()
+        self.assertEqual((code, len(lines)), (0, 5))
+        self.assertTrue(all("[武器屋]" in ln for ln in lines))
+        with self.assertRaises(SystemExit):
+            self._cli("shop", "-k", "spaceport")
+        self.assertIn("shop", self._cli("styles")[1])
 
 
 

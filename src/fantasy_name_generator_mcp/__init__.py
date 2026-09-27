@@ -7,6 +7,7 @@ from .index import (
     place_names,
     release,
     reserve,
+    shop_names,
     styles_overview,
     tavern_names,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "place_names",
     "country_names",
     "tavern_names",
+    "shop_names",
     "names_from_examples",
     "reserve",
     "list_reserved_names",

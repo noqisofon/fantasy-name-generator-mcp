@@ -358,3 +358,155 @@ WAFUU_TAVERN_SUFFIXES = dict(
         ("軒", "ken", 1),
     ],
 )
+
+# ---------------------------------------------------------------------------
+# 店舗 (武器屋・道具屋・薬屋など)
+# ---------------------------------------------------------------------------
+# 店の種類ごとに:
+#   label = 日本語の種類名 (一覧表示用)
+#   names = 店名の語尾に使う語 [(日本語, 英語, ローマ字)]   例: 武器屋 / Arms / buki-ya
+#   goods = その店の品 [(日本語, 英語, ローマ字)]           例: 狼の「牙」武器店
+SHOP_TYPES = {
+    "weapon": dict(
+        label="武器屋",
+        names=[("武器屋", "Arms", "buki-ya"), ("武器店", "Weaponsmith", "buki-ten"),
+               ("武具店", "Armory", "bugu-ten"), ("刃物店", "Bladeworks", "hamono-ten")],
+        goods=[("牙", "Fang", "kiba"), ("爪", "Claw", "tsume"), ("刃", "Blade", "yaiba"),
+               ("穂先", "Spearhead", "hosaki"), ("矢", "Arrow", "ya"), ("剣", "Sword", "tsurugi")],
+    ),
+    "armor": dict(
+        label="防具屋",
+        names=[("防具屋", "Armory", "bougu-ya"), ("防具店", "Armor Shop", "bougu-ten"),
+               ("甲冑店", "Harness", "katchuu-ten")],
+        goods=[("鱗", "Scale", "uroko"), ("鎧", "Mail", "yoroi"), ("兜", "Helm", "kabuto"),
+               ("盾", "Shield", "tate"), ("籠手", "Gauntlet", "kote")],
+    ),
+    "general": dict(
+        label="道具屋・雑貨店",
+        names=[("道具屋", "General Store", "dougu-ya"), ("雑貨店", "Sundries", "zakka-ten"),
+               ("よろず屋", "Goods & Wares", "yorozuya"), ("何でも屋", "Odds & Ends", "nandemoya")],
+        goods=[("袋", "Sack", "fukuro"), ("背負い袋", "Pack", "seoibukuro"), ("縄", "Rope", "nawa"),
+               ("鍋", "Pot", "nabe"), ("提灯", "Lantern", "chouchin")],
+    ),
+    "potion": dict(
+        label="薬屋",
+        names=[("薬屋", "Apothecary", "kusuri-ya"), ("薬店", "Dispensary", "yaku-ten"),
+               ("薬種店", "Drugstore", "yakushu-ten"), ("霊薬店", "Elixir Shop", "reiyaku-ten")],
+        goods=[("雫", "Drop", "shizuku"), ("瓶", "Vial", "bin"), ("霊薬", "Elixir", "reiyaku"),
+               ("軟膏", "Salve", "nankou"), ("煎じ薬", "Tincture", "senjigusuri")],
+    ),
+    "magic": dict(
+        label="魔道具店",
+        names=[("魔道具店", "Arcane Emporium", "madougu-ten"), ("魔法店", "Magic Shop", "mahou-ten"),
+               ("呪具店", "Charm Shop", "jugu-ten"), ("魔導書店", "Grimoire Shop", "madousho-ten")],
+        goods=[("杖", "Staff", "tsue"), ("水晶球", "Crystal Ball", "suishoudama"),
+               ("護符", "Talisman", "gofu"), ("羅針盤", "Compass", "rashinban"),
+               ("魔石", "Mana Stone", "maseki")],
+    ),
+    "blacksmith": dict(
+        label="鍛冶屋",
+        names=[("鍛冶屋", "Smithy", "kaji-ya"), ("鍛冶場", "Forge", "kajiba"),
+               ("鋳物店", "Foundry", "imono-ten")],
+        goods=[("金床", "Anvil", "kanatoko"), ("槌", "Hammer", "tsuchi"), ("炉", "Furnace", "ro"),
+               ("火花", "Spark", "hibana"), ("鉄", "Iron", "tetsu")],
+    ),
+    "jeweler": dict(
+        label="宝石店",
+        names=[("宝石店", "Jeweler", "houseki-ten"), ("宝飾店", "Jewelry", "houshoku-ten"),
+               ("貴金属店", "Gold & Silver", "kikinzoku-ten")],
+        goods=[("指輪", "Ring", "yubiwa"), ("首飾り", "Necklace", "kubikazari"),
+               ("原石", "Gemstone", "genseki"), ("耳飾り", "Earring", "mimikazari"),
+               ("宝冠", "Tiara", "houkan")],
+    ),
+    "book": dict(
+        label="書店",
+        names=[("書店", "Bookshop", "sho-ten"), ("古書店", "Rare Books", "kosho-ten"),
+               ("本屋", "Booksellers", "hon-ya"), ("貸本屋", "Lending Library", "kashihon-ya")],
+        goods=[("紙", "Paper", "kami"), ("栞", "Bookmark", "shiori"), ("羊皮紙", "Parchment", "youhishi"),
+               ("インク", "Ink", "inku"), ("巻物", "Scroll", "makimono")],
+    ),
+    "bakery": dict(
+        label="パン屋・菓子店",
+        names=[("パン屋", "Bakery", "pan-ya"), ("焼き菓子店", "Pastry Shop", "yakigashi-ten"),
+               ("菓子店", "Confectioner", "kashi-ten")],
+        goods=[("麦穂", "Wheat Ear", "mugiho"), ("窯", "Oven", "kama"),
+               ("粉", "Flour", "kona"), ("小麦", "Wheat", "komugi"),
+               ("蜂蜜", "Honey", "hachimitsu")],
+    ),
+    "grocer": dict(
+        label="八百屋",
+        names=[("八百屋", "Greengrocer", "yaoya"), ("青果店", "Produce Stall", "seika-ten"),
+               ("食料品店", "Provisions", "shokuryouhin-ten")],
+        goods=[("籠", "Basket", "kago"), ("収穫", "Harvest", "shuukaku"), ("根菜", "Root Veg", "konsai"),
+               ("林檎", "Apple", "ringo"), ("畑", "Field", "hatake")],
+    ),
+    "butcher": dict(
+        label="肉屋",
+        names=[("肉屋", "Butcher", "niku-ya"), ("精肉店", "Meat Shop", "seiniku-ten")],
+        goods=[("骨", "Bone", "hone"), ("燻製", "Smoked Meat", "kunsei"), ("包丁", "Cleaver", "houchou"),
+               ("腸詰め", "Sausage", "chouzume")],
+    ),
+    "fishmonger": dict(
+        label="魚屋",
+        names=[("魚屋", "Fishmonger", "sakana-ya"), ("鮮魚店", "Fresh Fish", "sengyo-ten")],
+        goods=[("網", "Net", "ami"), ("潮", "Tide", "shio"), ("銀鱗", "Silver Scale", "ginrin"),
+               ("釣り針", "Fishhook", "tsuribari"), ("波止場", "Wharf", "hatoba")],
+    ),
+    "tailor": dict(
+        label="仕立て屋",
+        names=[("仕立て屋", "Tailor", "shitate-ya"), ("服飾店", "Clothier", "fukushoku-ten"),
+               ("古着屋", "Second-Hand Clothes", "furugi-ya")],
+        goods=[("針", "Needle", "hari"), ("糸", "Thread", "ito"), ("外套", "Cloak", "gaitou"),
+               ("襟", "Collar", "eri"), ("反物", "Bolt of Cloth", "tanmono")],
+    ),
+    "herbalist": dict(
+        label="薬草店",
+        names=[("薬草店", "Herbalist", "yakusou-ten"), ("香草店", "Spice & Herb Shop", "kousou-ten"),
+               ("草根屋", "Root & Herb Shop", "kusane-ya")],
+        goods=[("薬草", "Herb", "yakusou"), ("根", "Root", "ne"), ("葉", "Leaf", "ha"),
+               ("苔", "Moss", "koke"), ("露", "Dew", "tsuyu")],
+    ),
+    "antiques": dict(
+        label="骨董品店",
+        names=[("骨董品店", "Antiques", "kottouhin-ten"), ("古道具屋", "Curios", "furudougu-ya"),
+               ("蒐集店", "Collector's Shop", "shuushuu-ten")],
+        goods=[("古時計", "Old Clock", "furudokei"), ("遺物", "Relic", "ibutsu"), ("壺", "Urn", "tsubo"),
+               ("古地図", "Old Map", "furuchizu"), ("硝子玉", "Glass Bead", "garasudama")],
+    ),
+    "pawn": dict(
+        label="質屋",
+        names=[("質屋", "Pawnshop", "shichi-ya"), ("買取店", "Buy & Sell", "kaitori-ten")],
+        goods=[("担保", "Pledge", "tanpo"), ("預かり", "Deposit", "azukari"),
+               ("形見", "Keepsake", "katami"), ("天秤", "Scale", "tenbin")],
+    ),
+    "florist": dict(
+        label="花屋",
+        names=[("花屋", "Florist", "hana-ya"), ("花店", "Flower Shop", "hana-ten")],
+        goods=[("花束", "Bouquet", "hanataba"), ("蕾", "Bud", "tsubomi"), ("花弁", "Petal", "hanabira"),
+               ("鉢", "Pot", "hachi"), ("種", "Seed", "tane")],
+    ),
+    "chandler": dict(
+        label="蝋燭店",
+        names=[("蝋燭店", "Chandlery", "rousoku-ten"), ("灯り屋", "Lamp Shop", "akari-ya")],
+        goods=[("灯火", "Flame", "tomoshibi"), ("芯", "Wick", "shin"), ("蝋", "Wax", "rou"),
+               ("燭台", "Candlestick", "shokudai")],
+    ),
+    "cartographer": dict(
+        label="地図屋",
+        names=[("地図屋", "Cartographer", "chizu-ya"), ("測量店", "Surveyor", "sokuryou-ten")],
+        goods=[("羅針盤", "Compass", "rashinban"), ("等高線", "Contour", "toukousen"),
+               ("海図", "Sea Chart", "kaizu"), ("方位", "Bearing", "houi")],
+    ),
+}
+# 店名の型と重み (西洋風は日英対訳、和風は漢字+ローマ字)
+#   adj_creature=形容詞+生き物の◯◯屋 / creature_good=生き物の品の◯◯屋 / creature_shop=生き物の◯◯屋 /
+#   good_shop=品の◯◯屋 / person_shop=人名の◯◯屋 / person_kin=人名+親族の◯◯屋 /
+#   type_first=種類が前 / kanji=漢字二字 / abstract=抽象語の◯◯屋
+SHOP_PATTERNS_WESTERN = dict(
+    adj_creature=18, creature_good=14, creature_shop=12, good_shop=8, person_shop=14,
+    person_kin=8, type_first=12, kanji=12, abstract=10,
+)
+SHOP_PATTERNS_WAFUU = dict(
+    creature_shop=18, creature_good=12, good_shop=8, person_shop=10, person_kin=8,
+    type_first=14, kanji=18, abstract=12,
+)
