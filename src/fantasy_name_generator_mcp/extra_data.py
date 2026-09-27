@@ -86,16 +86,79 @@ EXTRA_PLACES = {
 # ---------------------------------------------------------------------------
 # 国名
 # ---------------------------------------------------------------------------
-# 政体 -> 日本語の語 / 英語の正式名テンプレート / 元首の称号
+# 政体 -> ja=日本語の語 / en=英語の正式名テンプレート / ruler=元首の称号 / w=ランダム選択時の重み
 GOVERNMENTS = {
-    "kingdom": dict(ja="王国", en="Kingdom of {}", ruler="王"),
-    "empire": dict(ja="帝国", en="{} Empire", ruler="皇帝"),
-    "republic": dict(ja="共和国", en="Republic of {}", ruler="大統領"),
-    "duchy": dict(ja="公国", en="Duchy of {}", ruler="公爵"),
-    "federation": dict(ja="連邦", en="{} Federation", ruler="連邦議長"),
-    "theocracy": dict(ja="教国", en="Holy Realm of {}", ruler="教皇"),
-    "tribal": dict(ja="部族連合", en="{} Tribal Confederacy", ruler="大族長"),
+    # --- 王国・帝国など (古典的な国) ---
+    "kingdom": dict(ja="王国", en="Kingdom of {}", ruler="王", w=3),
+    "empire": dict(ja="帝国", en="{} Empire", ruler="皇帝", w=3),
+    "republic": dict(ja="共和国", en="Republic of {}", ruler="大統領", w=3),
+    "duchy": dict(ja="公国", en="Duchy of {}", ruler="公爵", w=2),
+    "grand_duchy": dict(ja="大公国", en="Grand Duchy of {}", ruler="大公", w=2),
+    "grand_duchy_land": dict(ja="大公領", en="Grand Duchy of {}", ruler="大公", w=2),
+    "principality": dict(ja="侯国", en="Principality of {}", ruler="侯", w=1),
+    "emirate": dict(ja="首長国", en="Emirate of {}", ruler="首長", w=1),
+    "sultanate": dict(ja="スルタン国", en="Sultanate of {}", ruler="スルタン", w=1),
+    "dynasty": dict(ja="王朝", en="{} Dynasty", ruler="王", w=1),
+    "holy_dynasty": dict(ja="聖導王朝", en="Holy Guiding Dynasty of {}", ruler="聖導王", w=1),
+    "nation": dict(ja="国", en="Land of {}", ruler="国主", w=4),
+    # --- 宗教・騎士団 ---
+    "theocracy": dict(ja="教国", en="Holy Realm of {}", ruler="教皇", w=2),
+    "bishopric": dict(ja="司教領", en="Bishopric of {}", ruler="司教", w=2),
+    "monastic": dict(ja="修道院領", en="Monastic State of {}", ruler="修道院長", w=1),
+    "holy_order": dict(ja="神聖騎士団領", en="Holy Order State of {}", ruler="騎士団総長", w=1),
+    "law": dict(ja="法国", en="Law-State of {}", ruler="法王", w=1),
+    "covenant": dict(ja="誓約", en="Covenant of {}", ruler="誓約者", w=1),
+    # --- ファンタジー ---
+    "spirit": dict(ja="精霊国", en="Spirit Realm of {}", ruler="精霊王", w=2),
+    "fairy": dict(ja="妖精国", en="Fairy Realm of {}", ruler="妖精女王", w=2),
+    "dragon": dict(ja="竜王国", en="Dragon Kingdom of {}", ruler="竜王", w=1),
+    "arcane": dict(ja="魔道邦", en="Arcane League of {}", ruler="大魔導師", w=1),
+    "cosmic": dict(ja="宇宙国", en="Cosmic State of {}", ruler="星帝", w=1),
+    "underground": dict(ja="地下戦線", en="{} Underground Front", ruler="指導者", w=1),
+    # --- 連邦・同盟・社会主義など (近現代風) ---
+    "federation": dict(ja="連邦", en="{} Federation", ruler="連邦議長", w=2),
+    "confederation": dict(ja="諸侯連合", en="Confederation of Lords of {}", ruler="盟主", w=1),
+    "tribal": dict(ja="部族連合", en="{} Tribal Confederacy", ruler="大族長", w=1),
+    "alliance": dict(ja="同盟", en="{} Alliance", ruler="盟主", w=1),
+    "coalition": dict(ja="連合政権", en="{} Coalition Government", ruler="首相", w=1),
+    "league": dict(ja="協商邦", en="{} Commercial League", ruler="議長", w=1),
+    "autonomous": dict(ja="自治領", en="Dominion of {}", ruler="総督", w=1),
+    "city_state": dict(ja="市国", en="City-State of {}", ruler="市長", w=1),
+    "socialist": dict(ja="社会主義国", en="Socialist State of {}", ruler="書記長", w=1),
+    "socialist_republic": dict(ja="社会主義共和国", en="Socialist Republic of {}", ruler="書記長", w=1),
+    "democratic_republic": dict(ja="民主共和国", en="Democratic Republic of {}", ruler="大統領", w=1),
+    "peoples_republic": dict(ja="民主人民共和国", en="Democratic People's Republic of {}", ruler="最高指導者", w=1),
 }
+
+# 国名の型 (decorate=True のとき、重みに従ってどれかを使う)
+#  plain=名前+政体 / prefix=地域名の前置き / epithet=二つ名 / bare=名前だけ / no_of=「〜の国」 /
+#  pair=二つの名前の並記 / katakana=「〜・リパブリック」 / dynasty_realm=「◯◯朝△△王国」
+COUNTRY_PATTERNS = dict(
+    plain=46, prefix=12, epithet=10, bare=6, no_of=5, pair=10, katakana=6, dynasty_realm=5,
+)
+# 地域名の前置き: (日本語, 英語)
+COUNTRY_PREFIXES = [
+    ("極東", "Far East"), ("西極", "Far West"), ("東海", "East Sea"), ("北辺", "Northern"),
+    ("南洋", "Southern Sea"), ("中原", "Central"), ("大", "Greater"), ("新", "New"),
+    ("旧", "Old"), ("上", "Upper"), ("下", "Lower"),
+]
+# 二つ名: (日本語, 英語)   例: 「常夏の帝国 ツェムァ」「川の大公国 アリアンヌ」
+COUNTRY_EPITHETS = [
+    ("常夏の", "Eternal Summer"), ("川の", "River"), ("森の", "Forest"), ("砂の", "Sand"),
+    ("星の", "Star"), ("海の", "Sea"), ("氷の", "Ice"), ("鉄の", "Iron"), ("白き", "White"),
+    ("黒き", "Black"), ("黄昏の", "Twilight"), ("霧の", "Mist"), ("翡翠の", "Jade"),
+    ("琥珀の", "Amber"),
+]
+# 「〜・リパブリック」型: 政体 -> (カタカナ, 英語テンプレート)
+COUNTRY_KATAKANA = dict(
+    republic=("リパブリック", "{} Republic"), federation=("フェデレーション", "{} Federation"),
+    empire=("エンパイア", "{} Empire"), kingdom=("キングダム", "{} Kingdom"),
+    alliance=("ユニオン", "{} Union"), league=("リーグ", "{} League"),
+)
+# 二つの名前を「及び」で結ぶのが自然な政体 (それ以外は「・」)
+COUNTRY_PAIR_AND = {"coalition", "federation", "alliance", "confederation"}
+# 「◯◯朝△△王国」型を作れる政体
+COUNTRY_DYNASTY_OK = {"kingdom", "empire", "grand_duchy", "sultanate"}
 
 # 国名の語尾 (スタイルごと)
 COUNTRY_ENDINGS = dict(

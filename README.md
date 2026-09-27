@@ -38,7 +38,8 @@ python -m fantasy_name_generator_mcp --demo
 uv run fantasy-name-generator-mcp tavern -t western -k inn -n 5      # 西洋風の宿屋名
 uv run fantasy-name-generator-mcp char -s wafuu -g male -n 5 --family # 和風の男性名(姓つき)
 uv run fantasy-name-generator-mcp place -s southern -k desert         # 南方風の砂漠の地名
-uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名
+uv run fantasy-name-generator-mcp country -s human -n 10            # 国名 (政体は毎回ランダム)
+uv run fantasy-name-generator-mcp country -s human --gov empire       # 帝国名に限定
 uv run fantasy-name-generator-mcp examples Santanyaan Maribel Marisol # 響きを学習して新しい名前
 uv run fantasy-name-generator-mcp styles                              # スタイル・種別・政体の一覧
 ```
@@ -47,7 +48,7 @@ uv run fantasy-name-generator-mcp styles                              # スタ�
 | :--------------------------------- | :----------------------- | :----------------------------------------------------------- |
 | `char`                             | キャラクター名           | `-s` スタイル, `-g` 性別, `--family` 姓つき, `--starts-with` |
 | `place`                            | 地名                     | `-s` スタイル, `-k` 種別, `--starts-with`                    |
-| `country`                          | 国名                     | `-s` スタイル, `--gov` 政体, `--starts-with`                 |
+| `country`                          | 国名                     | `-s` スタイル, `--gov` 政体 (既定はランダム), `--plain` 型なし, `--starts-with` |
 | `tavern`                           | 酒場・宿屋の屋号         | `-t` 西洋風/和風, `-k` 酒場/宿屋, `-w` 擬人化の率            |
 | `examples`                         | 既存の名前から新しい名前 | 名前を3個以上, `--order`                                     |
 | `reserve` / `reserved` / `release` | 予約の追加・一覧・解除   | `--note`                                                     |
@@ -144,16 +145,31 @@ MCP 設定画面にて以下を追加します：
 各地名には、接尾辞とその意味 (`suffix`, `suffix_meaning`) に加えて、日本語の呼び名 `ja_name`（例: `Nidilsahra` → 「ニディル砂漠」）が付きます。
 
 ### 3. `generate_country_names`
-国名を生成します。政体ごとに、日本語名 (`ja_name`)・英語の正式名 (`en_formal`)・元首の称号 (`ruler_title`) を返します。
+国名を生成します。政体は既定でランダム (`any`) で、王国・帝国・共和国だけでなく、司教領・精霊国・魔道邦・自治領・市国・協商邦・地下戦線・誓約など 36 種類が出ます。日本語名 (`ja_name`)・英語の正式名 (`en_formal`)・元首の称号 (`ruler_title`) を返します。
 
-| 引数         | 型                   | 既定値      | 説明                                                                                                     |
-| :----------- | :------------------- | :---------- | :------------------------------------------------------------------------------------------------------- |
-| `style`      | `Literal`            | `"elf"`     | 命名スタイル                                                                                             |
-| `government` | `Literal`            | `"kingdom"` | 政体 (`kingdom` 王国 / `empire` 帝国 / `republic` 共和国 / `duchy` 公国 / `federation` 連邦 / `theocracy` 教国 / `tribal` 部族連合) |
-| `count`      | `int`                | `5`         | 生成数 (1〜50)                                                                                           |
-| `seed`       | `int \| str \| None` | `None`      | 乱数シード                                                                                               |
-| `starts_with`| `str \| None`        | `None`      | 頭文字指定                                                                                               |
-| `avoid`      | `list[str] \| None`  | `None`      | 除外リスト                                                                                               |
+| 引数          | 型                   | 既定値  | 説明                                                                                       |
+| :------------ | :------------------- | :------ | :----------------------------------------------------------------------------------------- |
+| `style`       | `Literal`            | `"elf"` | 命名スタイル                                                                               |
+| `government`  | `Literal`            | `"any"` | 政体。`any` はランダム。`empire` (帝国)、`bishopric` (司教領)、`spirit` (精霊国) など指定も可 |
+| `count`       | `int`                | `5`     | 生成数 (1〜50)                                                                             |
+| `seed`        | `int \| str \| None` | `None`  | 乱数シード                                                                                 |
+| `starts_with` | `str \| None`        | `None`  | 頭文字指定                                                                                 |
+| `avoid`       | `list[str] \| None`  | `None`  | 除外リスト                                                                                 |
+| `decorate`    | `bool`               | `True`  | 型を混ぜるか。`False` なら「名前+政体」だけ                                                |
+
+`decorate` が有効なときは、次のような型がランダムに混ざります。
+
+| 型 | 例 |
+| :-- | :-- |
+| 名前+政体 | ネルノヴァ王国 |
+| 地域名の前置き | 極東ヒヴィランド魔道邦 / 旧メディトランド教国 |
+| 二つ名 | 星の自治領 レビア / 氷の教国 マネドル |
+| 二つの名前の並記 | ストマルク及びコトポル連合政権 / ノランド・ウォトレ公国 |
+| カタカナ型 | スタランド・フェデレーション |
+| 王朝つき | トラ朝レマルク帝国 |
+| 名前だけ / 〜の国 | デマルク / ムスヴァニアの国 |
+
+政体を指定したときは、名前だけの型は使われず、政体の語が必ず残ります。政体の全一覧は `list_styles`（CLI では `styles`）で確認できます。表は `extra_data.py` の `GOVERNMENTS` にあり、行を足すとツールの選択肢にも自動で反映されます。
 
 ### 4. `generate_tavern_names`
 酒場・宿屋の屋号を生成します。西洋風は日英対訳（「酔いどれ鹿亭 / The Drunken Stag」）、和風は漢字+ローマ字（「月見の宿 / Tsukimi no Yado」）です。

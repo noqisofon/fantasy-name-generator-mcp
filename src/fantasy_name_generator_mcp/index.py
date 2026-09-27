@@ -47,7 +47,13 @@ from .extra_data import (
     ADJ_ANY,
     ADJ_LIVING,
     ADJ_POETIC,
+    COUNTRY_DYNASTY_OK,
     COUNTRY_ENDINGS,
+    COUNTRY_EPITHETS,
+    COUNTRY_KATAKANA,
+    COUNTRY_PAIR_AND,
+    COUNTRY_PATTERNS,
+    COUNTRY_PREFIXES,
     EXTRA_PLACE_KINDS_JA,
     EXTRA_PLACES,
     GOVERNMENTS,
@@ -69,9 +75,8 @@ PlaceKindType = Literal[
     "plains", "desert", "wasteland", "swamp", "hills", "valley", "coast", "sea",
     "island", "cave", "ruins",
 ]
-GovernmentType = Literal[
-    "kingdom", "empire", "republic", "duchy", "federation", "theocracy", "tribal"
-]
+# "any"(ランダム) + extra_data.GOVERNMENTS の全政体。表に政体を足すと enum も自動で増える
+GovernmentType = Literal[("any", *GOVERNMENTS)]  # type: ignore[valid-type]
 TavernToneType = Literal["western", "wafuu"]
 TavernKindType = Literal["any", "tavern", "inn"]
 
@@ -741,40 +746,108 @@ def place_names(
 
 def country_names(
     style: str = "elf",
-    government: str = "kingdom",
+    government: str = "any",
     count: int = 5,
     seed: int | str | None = None,
     starts_with: str | None = None,
     min_len: int = 4,
     max_len: int = 13,
     avoid: list[str] | None = None,
+    decorate: bool = True,
 ) -> dict:
-    """国名。語幹+国名の語尾に、政体ごとの日本語/英語の正式名と元首の称号を添える。"""
+    """国名。政体は既定でランダム (any)。decorate=True なら、地域名の前置き・二つ名・二つの名前の並記・
+    カタカナ型などの「型」も混ぜる。日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返す。"""
     spec = _get_style(style)
-    if government not in GOVERNMENTS:
-        raise ValueError(f"government must be one of: {', '.join(GOVERNMENTS)}")
-    gov = GOVERNMENTS[government]
+    if government != "any" and government not in GOVERNMENTS:
+        raise ValueError(f"government must be 'any' or one of: {', '.join(GOVERNMENTS)}")
     endings = COUNTRY_ENDINGS[style]
+    gov_keys = list(GOVERNMENTS)
+    gov_weights = [GOVERNMENTS[k]["w"] for k in gov_keys]
+    pat_names = list(COUNTRY_PATTERNS)
+    pat_weights = [COUNTRY_PATTERNS[k] for k in pat_names]
     count = _clamp_count(count)
     seed, rng = _prep(seed)
 
+    def second_name(r, main):
+        for _ in range(8):
+            n = _build_stem(spec, r, r.randint(1, 2))
+            if n != main.lower() and _valid(n, spec, 2, 9):
+                return n
+        return None
+
     def gen(r):
+        gkey = government if government != "any" else r.choices(gov_keys, weights=gov_weights, k=1)[0]
         stem = _build_stem(spec, r, r.randint(1, 2))
-        return _join(stem, r.choice(endings), spec), {}
+        name = _join(stem, r.choice(endings), spec)
+        extra = {"government": gkey, "pattern": "plain"}
+        if decorate:
+            pat = r.choices(pat_names, weights=pat_weights, k=1)[0]
+            if pat == "prefix":
+                extra["_prefix"] = r.choice(COUNTRY_PREFIXES)
+            elif pat == "epithet":
+                extra["_epithet"] = r.choice(COUNTRY_EPITHETS)
+            elif pat == "katakana" and gkey not in COUNTRY_KATAKANA:
+                pat = "plain"
+            elif pat in ("pair", "dynasty_realm"):
+                n2 = second_name(r, name) if (pat == "pair" or gkey in COUNTRY_DYNASTY_OK) else None
+                if n2 is None:
+                    pat = "plain"
+                else:
+                    extra["_name2"] = n2
+            if pat in ("bare", "no_of"):
+                # 政体を名乗らない型。ランダム時は素直に「国」、政体を指定されたときは普通の型に戻す
+                if government == "any":
+                    extra["government"] = "nation"
+                else:
+                    pat = "plain"
+            extra["pattern"] = pat
+        return name, extra
 
     res = _collect(
         gen, count, spec, rng, _reserved_names() + list(avoid or []),
         starts_with, min_len, max_len
     )
     for e in res:
-        e["government"] = government
-        e["ja_name"] = e["kana"] + gov["ja"]
-        e["en_formal"] = gov["en"].format(e["name"])
-        e["ruler_title"] = gov["ruler"]
+        _compose_country(e, spec)
     out = {"style": style, "government": government, "seed": seed, "names": res}
     if len(res) < count:
         out["note"] = f"{len(res)} 個しか作れませんでした"
     return out
+
+
+def _compose_country(e: dict, spec: dict) -> None:
+    """生成した名前(e)に、型に応じた日本語名・英語の正式名・元首の称号を付ける"""
+    key, pat = e["government"], e["pattern"]
+    gov = GOVERNMENTS[key]
+    name, kana, term, en_t = e["name"], e["kana"], gov["ja"], gov["en"]
+    n2 = e.pop("_name2", None)
+    n2_kana = _kana(n2, spec) if n2 else ""
+    n2_en = n2.capitalize() if n2 else ""
+    prefix, epithet = e.pop("_prefix", None), e.pop("_epithet", None)
+    if pat == "prefix":
+        ja, en = f"{prefix[0]}{kana}{term}", en_t.format(f"{prefix[1]} {name}")
+    elif pat == "epithet":
+        ja, en = f"{epithet[0]}{term} {kana}", f"The {epithet[1]} {en_t.format(name)}"
+    elif pat == "bare":
+        ja, en = kana, name
+    elif pat == "no_of":
+        ja, en = f"{kana}の国", f"Land of {name}"
+    elif pat == "pair":
+        if key in COUNTRY_PAIR_AND:
+            ja, en = f"{kana}及び{n2_kana}{term}", en_t.format(f"{name} and {n2_en}")
+        else:
+            ja, en = f"{kana}・{n2_kana}{term}", en_t.format(f"{name}-{n2_en}")
+    elif pat == "katakana":
+        kata, en_k = COUNTRY_KATAKANA[key]
+        ja, en = f"{kana}・{kata}", en_k.format(name)
+    elif pat == "dynasty_realm":
+        ja, en = f"{n2_kana}朝{kana}{term}", f"{en_t.format(name)} under the {n2_en} Dynasty"
+    else:  # plain
+        ja, en = f"{kana}{term}", en_t.format(name)
+    e["government_ja"] = term
+    e["ja_name"] = ja
+    e["en_formal"] = en
+    e["ruler_title"] = gov["ruler"]
 
 
 def _wpick(r, seq):
@@ -977,7 +1050,11 @@ def styles_overview() -> dict:
             "description": spec["desc"],
             "samples": sample,
         })
-    return {"styles": out, "place_kinds": PLACE_KIND_JA}
+    return {
+        "styles": out,
+        "place_kinds": PLACE_KIND_JA,
+        "governments": {k: v["ja"] for k, v in GOVERNMENTS.items()},
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1077,7 +1154,7 @@ def _build_server():
             avoid=avoid,
         )
 
-    @mcp.tool(description="国名を生成します。政体(王国・帝国・共和国・公国・連邦・教国・部族連合)ごとの日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返します。")
+    @mcp.tool(description="国名を生成します。政体は既定でランダム(any)で、王国・帝国・共和国のほか、司教領・精霊国・魔道邦・自治領・市国・協商邦・地下戦線などが出ます。日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返します。")
     def generate_country_names(
         style: Annotated[
             StyleType,
@@ -1085,8 +1162,8 @@ def _build_server():
         ] = "elf",
         government: Annotated[
             GovernmentType,
-            Field(description="政体: kingdom (王国), empire (帝国), republic (共和国), duchy (公国), federation (連邦), theocracy (教国), tribal (部族連合)")
-        ] = "kingdom",
+            Field(description="政体。any (既定・ランダム) か、kingdom (王国), empire (帝国), republic (共和国), bishopric (司教領), spirit (精霊国), arcane (魔道邦), autonomous (自治領), city_state (市国), league (協商邦), socialist (社会主義国) など。全一覧は list_styles か CLI の styles で確認できます")
+        ] = "any",
         count: Annotated[
             int,
             Field(description="生成する名前の個数 (1〜50)", ge=1, le=50)
@@ -1103,6 +1180,10 @@ def _build_server():
             list[str] | None,
             Field(description="除外したい名前のリスト")
         ] = None,
+        decorate: Annotated[
+            bool,
+            Field(description="型を混ぜるか (既定True)。極東〜/西極〜の前置き、「常夏の帝国 ◯◯」の二つ名、「◯◯及び△△連合政権」の並記、「◯◯・リパブリック」などが出る。Falseなら「名前+政体」だけ")
+        ] = True,
     ) -> dict:
         return country_names(
             style=style,
@@ -1111,6 +1192,7 @@ def _build_server():
             seed=seed,
             starts_with=starts_with,
             avoid=avoid,
+            decorate=decorate,
         )
 
     @mcp.tool(description="酒場・宿屋の屋号を生成します。西洋風は日英対訳(酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字(月見亭 / Tsukimitei)。")
@@ -1288,7 +1370,7 @@ def _demo():
         print("  地名 (町):", ", ".join(f"{n['name']}({n['kana']}: {n['suffix_meaning']})" for n in p["names"]))
         d = place_names(key, "desert", 2, seed=1)
         print("  地名 (砂漠):", ", ".join(f"{n['name']}→{n['ja_name']}" for n in d["names"]))
-        c = country_names(key, "kingdom", 2, seed=1)
+        c = country_names(key, "any", 2, seed=1)
         print("  国名:", ", ".join(f"{n['en_formal']}→{n['ja_name']}" for n in c["names"]))
     print("\n[酒場・宿屋]")
     for tone in ("western", "wafuu"):

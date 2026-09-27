@@ -35,7 +35,8 @@ EPILOG = f"""\
 例:
   {PROG} char -s wafuu -g male -n 5 --family      和風の男性名を姓つきで5つ
   {PROG} place -s southern -k desert              南方風の砂漠の地名
-  {PROG} country -s human --gov empire -n 3       西洋風の帝国名
+  {PROG} country -s human -n 10                   国名 (政体は毎回ランダム)
+  {PROG} country -s human --gov empire -n 3       西洋風の帝国名に限定
   {PROG} tavern -t western -k inn                 西洋風の宿屋名
   {PROG} tavern -t western -w 1 -n 30             擬人化を多めに (眠らざるランタン亭など)
   {PROG} examples Santanyaan Maribel Marisol      既存の名前に響きを寄せて新しい名前を作る
@@ -98,9 +99,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     co = sub.add_parser("country", parents=[_common()], help="国名 (政体つき)")
     co.add_argument("-s", "--style", choices=styles, default="elf", help="スタイル (既定 elf)")
-    co.add_argument("--gov", "--government", dest="government", choices=list(GOVERNMENTS),
-                    default="kingdom", metavar="政体",
-                    help="政体 (既定 kingdom): " + " / ".join(GOVERNMENTS))
+    co.add_argument("--gov", "--government", dest="government", choices=["any", *GOVERNMENTS],
+                    default="any", metavar="政体",
+                    help="政体 (既定 any = ランダム)。empire, republic, bishopric, spirit, ... "
+                         "全一覧は `styles` コマンドで確認")
+    co.add_argument("--plain", action="store_true",
+                    help="型を混ぜず「名前+政体」だけにする (既定は、前置き・二つ名・並記なども混ぜる)")
     co.add_argument("--starts-with", metavar="文字列", help="先頭の文字列")
 
     t = sub.add_parser("tavern", parents=[_common()], help="酒場・宿屋の屋号")
@@ -162,7 +166,7 @@ def _fmt_place(n: dict) -> str:
 
 
 def _fmt_country(n: dict) -> str:
-    return f"{n['en_formal']}  /  {n['ja_name']}   (元首: {n['ruler_title']})"
+    return f"{n['ja_name']}  /  {n['en_formal']}   (元首: {n['ruler_title']})"
 
 
 def _fmt_tavern(n: dict) -> str:
@@ -217,7 +221,7 @@ def _run_styles(args) -> None:
         print(f"  {s['style']:9} {s['label']}  例: {', '.join(s['samples'])}")
     print("\n[地名の種別]  (place -k)")
     print("  " + " / ".join(f"{k}({PLACE_KIND_JA[k]})" for k in PLACE_KINDS))
-    print("\n[政体]  (country --gov)")
+    print("\n[政体]  (country --gov。any=ランダム)")
     print("  " + " / ".join(f"{k}({v['ja']})" for k, v in GOVERNMENTS.items()))
 
 
@@ -247,7 +251,7 @@ def run(argv: list[str] | None = None) -> int:
             return _emit(r, args, _fmt_place)
         elif cmd == "country":
             r = country_names(args.style, args.government, args.count, args.seed,
-                              args.starts_with, avoid=args.avoid)
+                              args.starts_with, avoid=args.avoid, decorate=not args.plain)
             return _emit(r, args, _fmt_country)
         elif cmd == "tavern":
             r = tavern_names(args.tone, args.kind, args.count, args.seed, args.avoid, args.whimsy)

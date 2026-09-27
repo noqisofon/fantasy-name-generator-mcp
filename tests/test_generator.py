@@ -168,16 +168,38 @@ class TestFantasyNameGenerator(unittest.TestCase):
             self.assertNotIn(item["name"], ex)
 
     def test_country_names(self):
+        # 政体を指定し、型を混ぜない(decorate=False)と「名前+政体」になる
         for style in STYLES:
             for gov, info in GOVERNMENTS.items():
-                res = country_names(style=style, government=gov, count=2, seed=8)
+                res = country_names(style=style, government=gov, count=2, seed=8, decorate=False)
                 self.assertEqual(len(res["names"]), 2, (style, gov))
                 for item in res["names"]:
-                    self.assertTrue(item["ja_name"].endswith(info["ja"]))
+                    self.assertTrue(item["ja_name"].endswith(info["ja"]), item)
                     self.assertIn(item["name"], item["en_formal"])
                     self.assertEqual(item["ruler_title"], info["ruler"])
+                    self.assertEqual(item["government"], gov)
         with self.assertRaises(ValueError):
             country_names(government="monarchy")
+
+    def test_country_names_are_varied_by_default(self):
+        # 既定 (any) は王国ばかりにならず、政体も型も散らばる
+        res = country_names(style="human", count=50, seed=1)["names"]
+        self.assertEqual(len(res), 50)
+        govs = [n["government"] for n in res]
+        self.assertGreaterEqual(len(set(govs)), 12)
+        self.assertLessEqual(govs.count("kingdom"), 10)
+        self.assertGreaterEqual(len({n["pattern"] for n in res}), 4)
+        for n in res:
+            self.assertTrue(n["ja_name"] and n["en_formal"] and n["ruler_title"])
+            self.assertNotIn("_", "".join(k for k in n if k.startswith("_")))  # 作業用のキーが漏れない
+            if n["pattern"] in ("bare", "no_of"):
+                self.assertEqual(n["government"], "nation")
+
+    def test_country_explicit_government_keeps_polity(self):
+        # 政体を指定したら、どの型でも政体の語が残る (名前だけの型にはならない)
+        for n in country_names(style="elf", government="empire", count=30, seed=4)["names"]:
+            word = "エンパイア" if n["pattern"] == "katakana" else "帝国"  # 「◯◯・エンパイア」型は帝国の語が入れ替わる
+            self.assertIn(word, n["ja_name"], n)
 
     def test_tavern_names(self):
         for tone in ("western", "wafuu"):
@@ -218,6 +240,8 @@ class TestFantasyNameGenerator(unittest.TestCase):
             (["char", "-s", "wafuu", "-g", "male", "-n", "3", "--family", "--seed", "1"], 3),
             (["place", "-s", "southern", "-k", "desert", "-n", "3", "--seed", "1"], 3),
             (["country", "-s", "human", "--gov", "empire", "-n", "2", "--seed", "1"], 2),
+            (["country", "-s", "human", "-n", "5", "--seed", "1"], 5),
+            (["country", "-s", "human", "-n", "3", "--seed", "1", "--plain"], 3),
             (["tavern", "-t", "western", "-k", "inn", "-n", "4", "--seed", "1"], 4),
             (["tavern", "-t", "wafuu", "-n", "4", "--seed", "1"], 4),
             (["examples", "Arthur", "Lancelot", "Gawain", "Percival", "Galahad", "-n", "2", "--seed", "1"], 1),
