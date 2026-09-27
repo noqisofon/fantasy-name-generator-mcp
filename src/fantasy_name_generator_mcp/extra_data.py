@@ -283,6 +283,8 @@ TAVERN_ABSTRACT = [
     ("なごり雪", "Lingering Snow", "nagoriyuki"), ("星降り", "Starfall", "hoshifuri"),
     ("夕焼け", "Sunset", "yuuyake"), ("三日月", "Crescent Moon", "mikazuki"),
     ("落とし物", "Lost Property", "otoshimono"), ("無礼講", "Revel", "bureikou"),
+    ("百花繚乱", "Riot of Blossoms", "hyakka ryouran"), ("花鳥風月", "Beauties of Nature", "kachou fuugetsu"),
+    ("望郷", "Homeward Longing", "boukyou"),
 ]
 # 種別ごとの (英語の接尾, 日本語の接尾, 重み)。英語の接尾が空なら "The ◯◯" のまま
 TAVERN_SUFFIXES = dict(
@@ -370,28 +372,32 @@ SHOP_TYPES = {
     "weapon": dict(
         label="武器屋",
         names=[("武器屋", "Arms", "buki-ya"), ("武器店", "Weaponsmith", "buki-ten"),
-               ("武具店", "Armory", "bugu-ten"), ("刃物店", "Bladeworks", "hamono-ten")],
+               ("武具店", "Armory", "bugu-ten"), ("刃物店", "Bladeworks", "hamono-ten"),
+               ("ウェポン", "Weapon Shop", "weapon")],
         goods=[("牙", "Fang", "kiba"), ("爪", "Claw", "tsume"), ("刃", "Blade", "yaiba"),
                ("穂先", "Spearhead", "hosaki"), ("矢", "Arrow", "ya"), ("剣", "Sword", "tsurugi")],
     ),
     "armor": dict(
         label="防具屋",
         names=[("防具屋", "Armory", "bougu-ya"), ("防具店", "Armor Shop", "bougu-ten"),
-               ("甲冑店", "Harness", "katchuu-ten")],
+               ("甲冑店", "Harness", "katchuu-ten"), ("アーマー", "Armor Shop", "aamaa")],
         goods=[("鱗", "Scale", "uroko"), ("鎧", "Mail", "yoroi"), ("兜", "Helm", "kabuto"),
                ("盾", "Shield", "tate"), ("籠手", "Gauntlet", "kote")],
     ),
     "general": dict(
         label="道具屋・雑貨店",
         names=[("道具屋", "General Store", "dougu-ya"), ("雑貨店", "Sundries", "zakka-ten"),
-               ("よろず屋", "Goods & Wares", "yorozuya"), ("何でも屋", "Odds & Ends", "nandemoya")],
+               ("よろず屋", "Goods & Wares", "yorozuya"), ("何でも屋", "Odds & Ends", "nandemoya"),
+               ("マーチャンダイズ", "Merchandise", "maachandaizu"), ("アイテム", "Item Shop", "aitemu"),
+               ("グッズ", "Goods Shop", "guzzu"), ("ショップ", "Shop", "shoppu")],
         goods=[("袋", "Sack", "fukuro"), ("背負い袋", "Pack", "seoibukuro"), ("縄", "Rope", "nawa"),
                ("鍋", "Pot", "nabe"), ("提灯", "Lantern", "chouchin")],
     ),
     "potion": dict(
         label="薬屋",
         names=[("薬屋", "Apothecary", "kusuri-ya"), ("薬店", "Dispensary", "yaku-ten"),
-               ("薬種店", "Drugstore", "yakushu-ten"), ("霊薬店", "Elixir Shop", "reiyaku-ten")],
+               ("薬種店", "Drugstore", "yakushu-ten"), ("霊薬店", "Elixir Shop", "reiyaku-ten"),
+               ("ドラッグ", "Drug Store", "doraggu")],
         goods=[("雫", "Drop", "shizuku"), ("瓶", "Vial", "bin"), ("霊薬", "Elixir", "reiyaku"),
                ("軟膏", "Salve", "nankou"), ("煎じ薬", "Tincture", "senjigusuri")],
     ),
@@ -455,7 +461,7 @@ SHOP_TYPES = {
     "tailor": dict(
         label="仕立て屋",
         names=[("仕立て屋", "Tailor", "shitate-ya"), ("服飾店", "Clothier", "fukushoku-ten"),
-               ("古着屋", "Second-Hand Clothes", "furugi-ya")],
+               ("古着屋", "Second-Hand Clothes", "furugi-ya"), ("ドレス", "Dress Shop", "doresu")],
         goods=[("針", "Needle", "hari"), ("糸", "Thread", "ito"), ("外套", "Cloak", "gaitou"),
                ("襟", "Collar", "eri"), ("反物", "Bolt of Cloth", "tanmono")],
     ),
@@ -469,13 +475,14 @@ SHOP_TYPES = {
     "antiques": dict(
         label="骨董品店",
         names=[("骨董品店", "Antiques", "kottouhin-ten"), ("古道具屋", "Curios", "furudougu-ya"),
-               ("蒐集店", "Collector's Shop", "shuushuu-ten")],
+               ("蒐集店", "Collector's Shop", "shuushuu-ten"), ("コレクション", "Collection", "korekushon")],
         goods=[("古時計", "Old Clock", "furudokei"), ("遺物", "Relic", "ibutsu"), ("壺", "Urn", "tsubo"),
                ("古地図", "Old Map", "furuchizu"), ("硝子玉", "Glass Bead", "garasudama")],
     ),
     "pawn": dict(
         label="質屋",
-        names=[("質屋", "Pawnshop", "shichi-ya"), ("買取店", "Buy & Sell", "kaitori-ten")],
+        names=[("質屋", "Pawnshop", "shichi-ya"), ("買取店", "Buy & Sell", "kaitori-ten"),
+               ("トレーダー", "Trading Post", "toreedaa")],
         goods=[("担保", "Pledge", "tanpo"), ("預かり", "Deposit", "azukari"),
                ("形見", "Keepsake", "katami"), ("天秤", "Scale", "tenbin")],
     ),
@@ -498,15 +505,44 @@ SHOP_TYPES = {
                ("海図", "Sea Chart", "kaizu"), ("方位", "Bearing", "houi")],
     ),
 }
+# 立地・最上級の飾り (「坂の上の」「街一番の」など)。日本語は末尾に「の」を含む形で持つ (日本語, 英語, ローマ字)
+SHOP_LOCATIONS = [
+    ("坂の上の", "Uphill", "saka no ue"), ("坂の下の", "Downhill", "saka no shita"),
+    ("河辺の", "Riverside", "kawabe"), ("浜辺の", "Seaside", "hamabe"),
+    ("湖畔の", "Lakeside", "kohan"), ("山裾の", "Foot of the Mountain", "yamasuso"),
+    ("峠の", "Mountain Pass", "touge"), ("沼底の", "Swamp Bottom", "numazoko"),
+    ("裏道の", "Back Alley", "uramichi"), ("裏街道沿いの", "Back Road", "ura-kaidou-zoi"),
+    ("小川沿いの", "Brookside", "ogawa-zoi"), ("山の手の", "Hillside District", "yamanote"),
+    ("港町の", "Port Town", "minatomachi"), ("目抜き通りの", "Main Street", "menuki-doori"),
+    ("五差路の", "Five-Way Crossing", "gosaro"), ("四つ辻の", "Crossroads", "yotsutsuji"),
+    ("南方の", "Southern", "nanpou"), ("北方の", "Northern", "hoppou"),
+    ("都市外れの", "City's Edge", "toshi-hazure"),
+    ("国一番の", "Finest in the Nation", "kuni-ichiban"), ("街一番の", "Finest in Town", "machi-ichiban"),
+    ("島一番の", "Finest on the Island", "shima-ichiban"), ("都市一番の", "Finest in the City", "toshi-ichiban"),
+    ("大陸一の", "Finest on the Continent", "tairiku-ichi"), ("世界一の", "World's Finest", "sekai-ichi"),
+]
+# 人名を伴わない、集団・血縁の飾り語 (「二人組」「親子」など)。(日本語, 英語, ローマ字)
+SHOP_GROUP_KIN = [
+    ("二人組", "Duo", "futari-gumi"), ("三人組", "Trio", "sannin-gumi"),
+    ("四人組", "Quartet", "yonin-gumi"), ("五人組", "Quintet", "gonin-gumi"),
+    ("六人組", "Sextet", "rokunin-gumi"), ("親子", "Parent and Child", "oyako"),
+    ("兄弟", "Brothers", "kyoudai"), ("姉妹", "Sisters", "shimai"),
+    ("義兄弟", "Sworn Brothers", "gikyoudai"), ("義姉妹", "Sworn Sisters", "gishimai"),
+    ("兄者", "Big Brother", "anija"),
+]
 # 店名の型と重み (西洋風は日英対訳、和風は漢字+ローマ字)
 #   adj_creature=形容詞+生き物の◯◯屋 / creature_good=生き物の品の◯◯屋 / creature_shop=生き物の◯◯屋 /
-#   good_shop=品の◯◯屋 / person_shop=人名の◯◯屋 / person_kin=人名+親族の◯◯屋 /
-#   type_first=種類が前 / kanji=漢字二字 / abstract=抽象語の◯◯屋
+#   good_shop=品の◯◯屋 / person_shop=人名の◯◯屋 / person_bare=人名+◯◯屋(直結) /
+#   two_person=人名と人名の◯◯屋 / person_kin=人名+親族の◯◯屋 / type_first=種類が前 /
+#   kanji=漢字二字 / abstract=抽象語の◯◯屋 / location_shop=立地・最上級の◯◯屋 /
+#   group_kin_shop=集団・血縁の◯◯屋
 SHOP_PATTERNS_WESTERN = dict(
-    adj_creature=18, creature_good=14, creature_shop=12, good_shop=8, person_shop=14,
-    person_kin=8, type_first=12, kanji=12, abstract=10,
+    adj_creature=16, creature_good=12, creature_shop=10, good_shop=7, person_shop=12,
+    person_bare=10, two_person=5, person_kin=6, type_first=12, kanji=10, abstract=8,
+    location_shop=14, group_kin_shop=6,
 )
 SHOP_PATTERNS_WAFUU = dict(
-    creature_shop=18, creature_good=12, good_shop=8, person_shop=10, person_kin=8,
-    type_first=14, kanji=18, abstract=12,
+    creature_shop=15, creature_good=10, good_shop=6, person_shop=8, person_bare=6,
+    two_person=3, person_kin=6, type_first=12, kanji=15, abstract=10,
+    location_shop=9, group_kin_shop=4,
 )

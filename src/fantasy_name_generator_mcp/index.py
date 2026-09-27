@@ -63,6 +63,8 @@ from .extra_data import (
     KIND_JA_TERM,
     NOUN_LIVING,
     NOUN_OBJECT,
+    SHOP_GROUP_KIN,
+    SHOP_LOCATIONS,
     SHOP_PATTERNS_WAFUU,
     SHOP_PATTERNS_WESTERN,
     SHOP_TYPES,
@@ -1166,6 +1168,34 @@ def tavern_names(
     return out
 
 
+_KATAKANA_WORD_RE = re.compile(r"^[ァ-ヺー]+$")
+
+
+def _is_katakana_word(s: str) -> bool:
+    """店の種類語が「マーチャンダイズ」のようなカタカナの外来語かどうか。つなぎの助詞を変えるのに使う"""
+    return bool(_KATAKANA_WORD_RE.match(s))
+
+
+def _shop_link(main_ja: str, t_ja: str, katakana_style: str = "no") -> str:
+    """名前部分と店の種類語をつなぐ助詞を選ぶ。種類語が「マーチャンダイズ」のようなカタカナの
+    外来語のときだけ katakana_style に従う: "no"=「の」のまま (生き物+品など) /
+    "nakaguro"=「・」でつなぐ (人名。「ウォリス・ショップ」) / "bare"=直結 (集団・血縁。「六姉妹ドラッグ」)。
+    それ以外の語には常に「の」を使う"""
+    if _is_katakana_word(t_ja):
+        if katakana_style == "bare":
+            return main_ja + t_ja
+        if katakana_style == "nakaguro":
+            return f"{main_ja}・{t_ja}"
+    return f"{main_ja}の{t_ja}"
+
+
+def _shop_link_ro(main_ro: str, t_ja: str, T: str, katakana_style: str = "no") -> str:
+    """_shop_link のローマ字版。カタカナの外来語で「・」/直結になる場合は「no」を省いて空白だけでつなぐ"""
+    if _is_katakana_word(t_ja) and katakana_style in ("bare", "nakaguro"):
+        return f"{main_ro} {T}"
+    return f"{main_ro} no {T}"
+
+
 def _shop_western(r, shop_type, whimsy=0.25, spec=None):
     """西洋風の店名。日本語(ja)と英語(en)の対訳を返す"""
     spec = spec or STYLES["human"]
@@ -1188,17 +1218,50 @@ def _shop_western(r, shop_type, whimsy=0.25, spec=None):
         words, ja, en = {c_en}, f"{c_ja}の{g_ja}{t_ja}", f"The {c_en}'s {g_en} {t_en}"
     elif pat == "creature_shop":
         c_en, c_ja = r.choice(NOUN_LIVING)
-        words, ja, en = {c_en}, f"{c_ja}の{t_ja}", f"The {c_en} {t_en}"
+        words, ja, en = {c_en}, _shop_link(c_ja, t_ja), f"The {c_en} {t_en}"
     elif pat == "good_shop":
         g_ja, g_en, _g = r.choice(st["goods"])
-        words, ja, en = {g_en}, f"{g_ja}の{t_ja}", f"The {g_en} {t_en}"
+        words, ja, en = {g_en}, _shop_link(g_ja, t_ja), f"The {g_en} {t_en}"
     elif pat == "person_shop":
         n_en, n_ja = _person(r, spec)
-        words, ja, en = {n_en}, f"{n_ja}の{t_ja}", f"{n_en}'s {t_en}"
+        words, ja = {n_en}, _shop_link(n_ja, t_ja, katakana_style="nakaguro")
+        en = f"{n_en}'s {t_en}"
+    elif pat == "person_bare":
+        n_en, n_ja = _person(r, spec)
+        words, ja, en = {n_en}, n_ja + t_ja, f"{n_en} {t_en}"
+    elif pat == "two_person":
+        n1_en, n1_ja = _person(r, spec)
+        n2_en, n2_ja = _person(r, spec)
+        for _ in range(5):
+            if n2_en != n1_en:
+                break
+            n2_en, n2_ja = _person(r, spec)
+        words = {n1_en, n2_en}
+        ja = _shop_link(f"{n1_ja}と{n2_ja}", t_ja, katakana_style="nakaguro")
+        en = f"{n1_en} & {n2_en}'s {t_en}"
     elif pat == "person_kin":
         n_en, n_ja = _person(r, spec)
         k_ja, k_en, _k = r.choice(TAVERN_KIN)
-        words, ja, en = {n_en}, f"{n_ja}{k_ja}の{t_ja}", f"{k_en} {n_en}'s {t_en}"
+        words, ja = {n_en}, _shop_link(f"{n_ja}{k_ja}", t_ja, katakana_style="nakaguro")
+        en = f"{k_en} {n_en}'s {t_en}"
+    elif pat == "location_shop":
+        loc_ja, loc_en, _loc_ro = r.choice(SHOP_LOCATIONS)
+        if r.random() < 0.5:
+            n_en, n_ja = _person(r, spec)
+            words, ja, en = {n_en}, f"{loc_ja}{n_ja}の{t_ja}", f"The {loc_en} {n_en}'s {t_en}"
+        else:
+            words, ja, en = set(), f"{loc_ja}{t_ja}", f"The {loc_en} {t_en}"
+    elif pat == "group_kin_shop":
+        g_ja, g_en, _g_ro = r.choice(SHOP_GROUP_KIN)
+        if r.random() < 0.35:
+            n_en, n_ja = _person(r, spec)
+            words = {n_en}
+            ja = _shop_link(f"{g_ja}{n_ja}", t_ja, katakana_style="bare")
+            en = f"The {g_en} {n_en}'s {t_en}"
+        else:
+            words = set()
+            ja = _shop_link(g_ja, t_ja, katakana_style="bare")
+            en = f"The {g_en} {t_en}"
     elif pat == "type_first":
         src = r.choices(["adj", "person", "abstract"], [55, 30, 15], k=1)[0]
         if src == "adj":
@@ -1230,21 +1293,59 @@ def _shop_wafuu(r, shop_type, whimsy=0.25, spec=None):
     pat = _pick_pattern(r, SHOP_PATTERNS_WAFUU)
     if pat == "creature_shop":
         c_ja, c_ro = r.choice(WAFUU_CREATURES)
-        words, ja, en = {c_ro}, f"{c_ja}の{t_ja}", f"{c_ro.capitalize()} no {T}"
+        words, ja = {c_ro}, _shop_link(c_ja, t_ja)
+        en = _shop_link_ro(c_ro.capitalize(), t_ja, T)
     elif pat == "creature_good":
         c_ja, c_ro = r.choice(WAFUU_CREATURES)
         g_ja, _g_en, g_ro = r.choice(st["goods"])
         words, ja, en = {c_ro}, f"{c_ja}の{g_ja}{t_ja}", f"{c_ro.capitalize()} no {g_ro.capitalize()} {T}"
     elif pat == "good_shop":
         g_ja, _g_en, g_ro = r.choice(st["goods"])
-        words, ja, en = {g_ro}, f"{g_ja}の{t_ja}", f"{g_ro.capitalize()} no {T}"
+        words, ja = {g_ro}, _shop_link(g_ja, t_ja)
+        en = _shop_link_ro(g_ro.capitalize(), t_ja, T)
     elif pat == "person_shop":
         n_en, n_ja = _person(r, spec)
-        words, ja, en = {n_en}, f"{n_ja}の{t_ja}", f"{n_en} no {T}"
+        words, ja = {n_en}, _shop_link(n_ja, t_ja, katakana_style="nakaguro")
+        en = _shop_link_ro(n_en, t_ja, T, katakana_style="nakaguro")
+    elif pat == "person_bare":
+        n_en, n_ja = _person(r, spec)
+        words, ja, en = {n_en}, n_ja + t_ja, f"{n_en} {T}"
+    elif pat == "two_person":
+        n1_en, n1_ja = _person(r, spec)
+        n2_en, n2_ja = _person(r, spec)
+        for _ in range(5):
+            if n2_en != n1_en:
+                break
+            n2_en, n2_ja = _person(r, spec)
+        words = {n1_en, n2_en}
+        ja = _shop_link(f"{n1_ja}と{n2_ja}", t_ja, katakana_style="nakaguro")
+        combo = f"{n1_en} to {n2_en}"
+        en = _shop_link_ro(combo, t_ja, T, katakana_style="nakaguro")
     elif pat == "person_kin":
         n_en, n_ja = _person(r, spec)
         k_ja, _k_en, k_ro = r.choice(TAVERN_KIN)
-        words, ja, en = {n_en}, f"{n_ja}{k_ja}の{t_ja}", f"{n_en} {k_ro} no {T}"
+        words, ja = {n_en}, _shop_link(f"{n_ja}{k_ja}", t_ja, katakana_style="nakaguro")
+        en = _shop_link_ro(f"{n_en} {k_ro}", t_ja, T, katakana_style="nakaguro")
+    elif pat == "location_shop":
+        loc_ja, _loc_en, loc_ro = r.choice(SHOP_LOCATIONS)
+        if r.random() < 0.5:
+            n_en, n_ja = _person(r, spec)
+            words = {n_en}
+            ja = f"{loc_ja}{n_ja}の{t_ja}"
+            en = f"{loc_ro.capitalize()} no {n_en} no {T}"
+        else:
+            words, ja, en = set(), f"{loc_ja}{t_ja}", f"{loc_ro.capitalize()} no {T}"
+    elif pat == "group_kin_shop":
+        g_ja, _g_en, g_ro = r.choice(SHOP_GROUP_KIN)
+        if r.random() < 0.35:
+            n_en, n_ja = _person(r, spec)
+            words = {n_en}
+            ja = _shop_link(f"{g_ja}{n_ja}", t_ja, katakana_style="bare")
+            en = _shop_link_ro(f"{g_ro.capitalize()} {n_en}", t_ja, T, katakana_style="bare")
+        else:
+            words = set()
+            ja = _shop_link(g_ja, t_ja, katakana_style="bare")
+            en = _shop_link_ro(g_ro.capitalize(), t_ja, T, katakana_style="bare")
     elif pat == "type_first":
         src = r.choices(["word", "kanji", "abstract", "person"], [35, 30, 15, 20], k=1)[0]
         if src == "word":
@@ -1282,7 +1383,9 @@ def shop_names(
 ) -> dict:
     """店舗 (武器屋・防具屋・道具屋・薬屋・魔道具店・鍛冶屋・書店・パン屋など) の店名。
     西洋風は日英対訳 (狼の牙武具店 / The Wolf's Fang Armory)、和風は漢字+ローマ字。
-    店の種類ごとの「品」や、人名 (ダルトンの武器屋)・親族 (バーブラおばあの薬屋)・種類が前 (道具屋 ミーチャ) などの型を混ぜる。"""
+    店の種類ごとの「品」や、人名 (ダルトンの武器屋・ダルトン武器屋)・親族 (バーブラおばあの薬屋)・
+    二人組 (ダルトンとバーブラの武器屋)・立地や最上級 (坂の上の武器屋・街一番の靴屋)・
+    集団血縁 (二人組の魔道店)・種類が前 (道具屋 ミーチャ) などの型を混ぜる。"""
     if shop_type != "any" and shop_type not in SHOP_TYPES:
         raise ValueError(f"shop_type must be 'any' or one of: {', '.join(SHOP_TYPES)}")
     if tone not in ("western", "wafuu"):

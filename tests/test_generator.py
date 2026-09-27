@@ -11,7 +11,10 @@ from fantasy_name_generator_mcp.extra_data import ADJ_LIVING, ADJ_POETIC, KIND_J
 from fantasy_name_generator_mcp.index import (
     MAX_COUNT,
     _SimIndex,
+    _is_katakana_word,
     _mora,
+    _shop_link,
+    _shop_link_ro,
     _too_similar,
     _valid,
     STYLES,
@@ -402,6 +405,38 @@ class TestFantasyNameGenerator(unittest.TestCase):
                     if n["en"].endswith("'s") or "  " in n["en"] or n["en"].startswith("The The"):
                         bad.append(n["en"])
         self.assertEqual(bad, [])
+
+    def test_shop_link_joins_by_script(self):
+        # 漢字の種類語には常に「の」
+        self.assertEqual(_shop_link("狼", "武器屋"), "狼の武器屋")
+        self.assertEqual(_shop_link_ro("Wolf", "武器屋", "Buki-ya"), "Wolf no Buki-ya")
+        # カタカナの外来語は katakana_style で変わる (省略時は「の」のまま)
+        self.assertTrue(_is_katakana_word("マーチャンダイズ"))
+        self.assertFalse(_is_katakana_word("武器屋"))
+        self.assertEqual(_shop_link("狼", "マーチャンダイズ"), "狼のマーチャンダイズ")
+        self.assertEqual(_shop_link_ro("Wolf", "マーチャンダイズ", "Maachandaizu"), "Wolf no Maachandaizu")
+        self.assertEqual(_shop_link("ウォリス", "ショップ", katakana_style="nakaguro"), "ウォリス・ショップ")
+        self.assertEqual(
+            _shop_link_ro("Wallis", "ショップ", "Shoppu", katakana_style="nakaguro"), "Wallis Shoppu"
+        )
+        self.assertEqual(_shop_link("六姉妹", "ドラッグ", katakana_style="bare"), "六姉妹ドラッグ")
+        self.assertEqual(_shop_link_ro("Rokushimai", "ドラッグ", "Doraggu", katakana_style="bare"), "Rokushimai Doraggu")
+        # 集団語でも漢字の種類語には「の」が残る
+        self.assertEqual(_shop_link("親子", "武器屋", katakana_style="bare"), "親子の武器屋")
+
+    def test_shop_new_patterns_appear_and_are_well_formed(self):
+        seen_patterns = set()
+        bad = []
+        for seed in range(20):
+            for tone in ("western", "wafuu"):
+                for n in shop_names("any", tone, 40, seed=seed)["names"]:
+                    seen_patterns.add(n["pattern"])
+                    if not n["ja"] or not n["en"] or "None" in n["en"] or "  " in n["en"] or "  " in n["ja"]:
+                        bad.append((tone, n))
+        self.assertEqual(bad, [])
+        # 新しく足した型 (人名直結・二人組・立地/最上級・集団血縁) が実際に出る
+        for pat in ("person_bare", "two_person", "location_shop", "group_kin_shop"):
+            self.assertIn(pat, seen_patterns, pat)
 
     def test_shop_names_errors_and_reserved(self):
         with self.assertRaises(ValueError):
