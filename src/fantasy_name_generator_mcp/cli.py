@@ -114,6 +114,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="種別 (既定 any)")
     t.add_argument("-w", "--whimsy", type=float, default=0.25, metavar="0〜1",
                    help="擬人化の出現率 (既定 0.25。西洋風のみ)")
+    t.add_argument("-s", "--style", choices=styles, default="human",
+                   help="屋号に入る人名の響き (既定 human)")
 
     ex = sub.add_parser("examples", parents=[_common()],
                         help="既存の名前から響きを学習して新しい名前を作る")
@@ -254,7 +256,8 @@ def run(argv: list[str] | None = None) -> int:
                               args.starts_with, avoid=args.avoid, decorate=not args.plain)
             return _emit(r, args, _fmt_country)
         elif cmd == "tavern":
-            r = tavern_names(args.tone, args.kind, args.count, args.seed, args.avoid, args.whimsy)
+            r = tavern_names(args.tone, args.kind, args.count, args.seed, args.avoid, args.whimsy,
+                             args.style)
             return _emit(r, args, _fmt_tavern)
         elif cmd == "examples":
             r = names_from_examples(args.names, args.count, args.seed, args.order, avoid=args.avoid)

@@ -172,7 +172,7 @@ COUNTRY_ENDINGS = dict(
 )
 
 # ---------------------------------------------------------------------------
-# 酒場・宿屋名  (en, ja) の対訳リスト
+# 酒場・宿屋名  (en, ja) の対訳リスト。namaemaker の屋号サンプルにある型を参考にしている
 # ---------------------------------------------------------------------------
 # 形容詞: 生き物にも物にも合うもの
 ADJ_ANY = [
@@ -180,7 +180,9 @@ ADJ_ANY = [
     ("Crooked", "曲がった"), ("Blue", "青い"), ("Red", "赤い"), ("Black", "黒い"),
     ("White", "白い"), ("Green", "緑の"), ("Old", "古びた"), ("Lucky", "幸運の"),
     ("Last", "最後の"), ("Lonely", "孤独な"), ("Hidden", "隠れた"), ("Gilded", "金箔の"),
-    ("Iron", "鉄の"), ("Cracked", "ひびの入った"),
+    ("Iron", "鉄の"), ("Cracked", "ひびの入った"), ("Shining", "輝ける"),
+    ("Salty", "塩辛い"), ("Pure White", "真っ白な"), ("Fortunate", "幸多き"),
+    ("Lukewarm", "生暖かい"),
 ]
 # 形容詞: 生き物にだけ合うもの
 ADJ_LIVING = [
@@ -189,12 +191,19 @@ ADJ_LIVING = [
     ("Wandering", "さまよう"), ("Weary", "くたびれた"), ("Prancing", "跳ねる"),
     ("Merry", "上機嫌な"), ("One-Eyed", "片目の"), ("Whistling", "口笛を吹く"),
     ("Grumbling", "不機嫌な"), ("Singing", "歌う"),
+    ("Stiff", "お堅い"), ("Odd", "おかしな"), ("Jolly", "ひょうきんな"),
+    ("Cheerful", "陽気な"), ("Growling", "うなる"), ("Tipsy", "酔いしれる"),
+    ("Winged", "翼の生えた"), ("Lively", "元気な"), ("Passed-Out", "酔い潰れた"),
+    ("Devoted", "けなげな"), ("Meticulous", "几帳面な"), ("Dozing", "まどろむ"),
+    ("Timid", "気弱な"), ("Silent", "無口な"), ("Diligent", "勤勉な"),
+    ("Clumsy", "不調法な"), ("Soft-Spoken", "声の小さい"), ("Contrary", "ひねくれた"),
+    ("Cheeky", "生意気な"), ("Bashful", "はにかむ"), ("Snoring", "いびきをかく"),
 ]
 # 形容詞: 擬人化・詩的なもの (物にも生き物にも使える。「眠らざるランタン亭」など)
 ADJ_POETIC = [
     ("Sleepless", "眠らざる"), ("Weeping", "泣く"), ("Whispering", "ささやく"),
     ("Forgetful", "忘れっぽい"), ("Homesick", "郷愁の"),
-    ("Unwinking", "瞬かぬ"),
+    ("Unwinking", "瞬かぬ"), ("Far-Flung", "遥けき"), ("Soaring", "天翔ける"),
 ]
 NOUN_LIVING = [
     ("Stag", "鹿"), ("Boar", "猪"), ("Crow", "鴉"), ("Goose", "ガチョウ"), ("Owl", "梟"),
@@ -202,6 +211,17 @@ NOUN_LIVING = [
     ("Bear", "熊"), ("Cat", "猫"), ("Toad", "蛙"), ("Hound", "猟犬"), ("Swan", "白鳥"),
     ("Nightingale", "夜鳴き鳥"), ("Ram", "雄羊"), ("Hare", "野兎"), ("Badger", "穴熊"),
     ("Heron", "青鷺"), ("Minstrel", "吟遊詩人"), ("Pilgrim", "巡礼者"), ("Jester", "道化師"),
+    ("Centaur", "ケンタウロス"), ("Unicorn", "ユニコーン"), ("Slime", "スライム"),
+    ("Skeleton", "スケルトン"), ("Goblin", "ゴブリン"), ("Dwarf", "ドワーフ"),
+    ("Gnome", "ノーム"), ("Giant", "巨人"), ("Wyvern", "ワイバーン"), ("Chimera", "キマイラ"),
+    ("Ghost", "幽霊"), ("Spirit", "精霊"), ("Goddess", "女神"), ("Sage", "賢者"),
+    ("Knight", "騎士"), ("Thieving Cat", "泥棒猫"), ("Black Cat", "黒猫"),
+    ("Calico Cat", "三毛猫"), ("Foal", "仔馬"), ("Piglet", "子豚"), ("Lamb", "子羊"),
+    ("Puppy", "子犬"), ("Turkey", "七面鳥"), ("Pelican", "ペリカン"), ("Lark", "ヒバリ"),
+    ("Mule", "ラバ"), ("Packhorse", "駄馬"), ("Hedgehog", "ハリネズミ"),
+    ("Pirate", "海賊"), ("Swordsman", "剣客"), ("Queen", "女王"), ("Cowherd", "牛飼い"),
+    ("Thunder Eagle", "雷鷲"), ("Three-Eyed One", "三つ目"), ("Stray Dog", "野良犬"),
+    ("Green Whale", "緑鯨"), ("Great Horse", "大馬"), ("Villager", "村民"),
 ]
 NOUN_OBJECT = [
     ("Anchor", "錨"), ("Barrel", "樽"), ("Lantern", "ランタン"), ("Crown", "王冠"),
@@ -210,11 +230,100 @@ NOUN_OBJECT = [
     ("Rose", "薔薇"), ("Moon", "月"), ("Sun", "太陽"), ("Star", "星"), ("Bridge", "橋"),
     ("Crossroads", "四つ辻"), ("Hearth", "炉端"), ("Candle", "蝋燭"), ("Mug", "マグ"),
     ("Compass", "羅針盤"), ("Thistle", "アザミ"), ("Oak", "樫の木"),
+    ("Ladle", "ひしゃく"), ("Wheelbarrow", "手押し車"), ("Raft", "いかだ"), ("Mast", "マスト"),
+    ("Pirate Flag", "海賊旗"), ("Coral", "珊瑚"), ("Straw", "藁"), ("Amber", "琥珀"),
+]
+# 「◯◯の△△」の△△: 生き物の動作・音・持ち物。(日本語, 英語, ローマ字)
+#   例: 仔豚の寝息 / ケンタウロスの溜息 / ゴブリンのささやき / 狐の曲芸 / 子豚の玉座
+TAVERN_ACTS = [
+    ("溜息", "Sigh", "tameiki"), ("笑い声", "Laughter", "waraigoe"), ("鼻歌", "Humming", "hanauta"),
+    ("涙", "Tear", "namida"), ("曲芸", "Trick", "kyokugei"), ("寝息", "Slumber", "neiki"),
+    ("ささやき", "Whisper", "sasayaki"), ("しずく", "Drop", "shizuku"), ("歌声", "Song", "utagoe"),
+    ("帰還", "Return", "kikan"), ("遠吠え", "Howl", "tooboe"), ("あくび", "Yawn", "akubi"),
+    ("いびき", "Snore", "ibiki"), ("足音", "Footsteps", "ashioto"), ("夢", "Dream", "yume"),
+    ("祈り", "Prayer", "inori"), ("鼻ちょうちん", "Snot Bubble", "hanachouchin"),
+    ("玉座", "Throne", "gyokuza"), ("寝床", "Bed", "nedoko"), ("味", "Taste", "aji"),
+    ("聖座", "Holy Seat", "seiza"), ("忘れ物", "Lost Item", "wasuremono"),
+]
+# 人名につく親族・愛称: (日本語, 英語, ローマ字)   例: リーター兄さん亭 / バーブラおばあ亭 / ヴケの親父宿
+TAVERN_KIN = [
+    ("兄さん", "Brother", "niisan"), ("姉さん", "Sister", "neesan"), ("おばあ", "Granny", "obaa"),
+    ("親父", "Old Man", "oyaji"), ("若女将", "Young Landlady", "wakaokami"),
+    ("女将", "Landlady", "okami"), ("おじさん", "Uncle", "ojisan"),
+    ("おばちゃん", "Auntie", "obachan"), ("大将", "Boss", "taishou"), ("爺さん", "Old-Timer", "jiisan"),
+]
+# 漢字二字の飾り (色・性質 + 自然・生き物)。(日本語, 英語, 音読みのローマ字)
+#   例: 金海 / 蒼空 / 紅天 / 翠陽 / 華雪 / 白狼 / 嵐鯨 / 月翠(自然+色の逆順もある)
+KANJI_A = [
+    ("紅", "Crimson", "kou"), ("蒼", "Azure", "sou"), ("翠", "Jade", "sui"), ("金", "Golden", "kin"),
+    ("銀", "Silver", "gin"), ("白", "White", "haku"), ("黒", "Black", "koku"), ("赤", "Red", "seki"),
+    ("碧", "Emerald", "heki"), ("華", "Blossom", "ka"), ("朧", "Hazy", "rou"), ("玄", "Dark", "gen"),
+    ("琥珀", "Amber", "kohaku"), ("輝", "Shining", "ki"),
+]
+# KANJI_A のうち「色」の語。自然+色 の逆順 (月翠など) に使えるのはこれだけ
+KANJI_COLORS = {"紅", "蒼", "翠", "金", "銀", "白", "黒", "赤", "碧", "玄", "琥珀"}
+KANJI_B = [
+    ("陽", "Sun", "you"), ("月", "Moon", "getsu"), ("星", "Star", "sei"), ("空", "Sky", "kuu"),
+    ("海", "Sea", "kai"), ("雪", "Snow", "setsu"), ("虹", "Rainbow", "kou"), ("花", "Flower", "ka"),
+    ("嵐", "Storm", "ran"), ("鯨", "Whale", "gei"), ("狼", "Wolf", "rou"), ("鹿", "Stag", "roku"),
+    ("鶴", "Crane", "kaku"), ("天", "Heaven", "ten"), ("霧", "Mist", "mu"), ("風", "Wind", "fuu"),
+    ("波", "Wave", "ha"), ("峰", "Peak", "hou"), ("泉", "Spring", "sen"), ("森", "Forest", "shin"),
+    ("楓", "Maple", "fuu"), ("鷹", "Hawk", "you"), ("竜", "Dragon", "ryuu"), ("鳳", "Phoenix", "hou"),
+    ("雷", "Thunder", "rai"), ("氷", "Ice", "hyou"),
+]
+# 抽象語・気分の言葉: (日本語, 英語, ローマ字)   例: 流浪亭 / 酔狂亭 / あの日の宿 / 出会い亭
+TAVERN_ABSTRACT = [
+    ("流浪", "Wanderer", "rurou"), ("酔狂", "Whimsy", "suikyou"), ("出会い", "Encounter", "deai"),
+    ("親友", "Old Friend", "shinyuu"), ("古神", "Elder God", "koshin"), ("大神", "Great Deity", "ookami"),
+    ("幽霊", "Ghost", "yuurei"), ("あの日", "Bygone Day", "ano hi"), ("真夜中", "Midnight", "mayonaka"),
+    ("夜明け", "Daybreak", "yoake"), ("黄昏", "Dusk", "tasogare"), ("雨宿り", "Rain Shelter", "amayadori"),
+    ("木漏れ日", "Dappled Sun", "komorebi"), ("片道切符", "One-Way Ticket", "katamichi kippu"),
+    ("千鳥足", "Stumbling Steps", "chidoriashi"), ("ほら吹き", "Braggart", "horafuki"),
+    ("道草", "Detour", "michikusa"), ("寄り道", "Side Trip", "yorimichi"),
+    ("なごり雪", "Lingering Snow", "nagoriyuki"), ("星降り", "Starfall", "hoshifuri"),
+    ("夕焼け", "Sunset", "yuuyake"), ("三日月", "Crescent Moon", "mikazuki"),
+    ("落とし物", "Lost Property", "otoshimono"), ("無礼講", "Revel", "bureikou"),
 ]
 # 種別ごとの (英語の接尾, 日本語の接尾, 重み)。英語の接尾が空なら "The ◯◯" のまま
 TAVERN_SUFFIXES = dict(
-    tavern=[("", "亭", 4), ("Tavern", "酒場", 2), ("Alehouse", "酒場", 1)],
-    inn=[("Inn", "の宿", 3), ("Inn", "亭", 3), ("Lodge", "荘", 1)],
+    tavern=[
+        ("", "亭", 4), ("Tavern", "酒場", 3), ("Tavern", "の酒場", 2), ("Alehouse", "の飲み屋", 2),
+        ("Cellar", "酒蔵", 1), ("Taproom", "酒店", 1), ("Pub", "酒亭", 1), ("Pub", "居酒屋", 1),
+        ("Eatery", "食事処", 1), ("Bistro", "小料理屋", 1), ("Teahouse", "茶屋", 1),
+        ("Tea Room", "茶寮", 1), ("", "軒", 1),
+    ],
+    inn=[
+        ("Inn", "の宿", 3), ("Inn", "の宿屋", 2), ("Inn", "亭", 3), ("Inn", "宿屋", 1),
+        ("Lodge", "旅籠", 1), ("Guesthouse", "の旅館", 1), ("Lodge", "旅荘", 1),
+        ("Chalet", "の山荘", 1), ("Boarding House", "下宿", 1), ("Inn", "の定宿", 1),
+        ("Manor", "館", 1), ("Lodge", "荘", 1), ("Hotel", "ホテル", 1), ("Cottage", "コテージ", 1),
+        ("Inn", "軒", 1),
+    ],
+)
+# 「種類が前」の型で使う語: (日本語, 英語, ローマ字, 重み)   例: 宿屋 キャスリン / 飲み屋 心地良い親不孝
+TAVERN_VENUES = dict(
+    tavern=[
+        ("酒場", "Tavern", "sakaba", 4), ("酒亭", "Pub", "shutei", 1), ("酒蔵", "Cellar", "sakagura", 1),
+        ("飲み屋", "Alehouse", "nomiya", 2), ("居酒屋", "Pub", "izakaya", 1),
+        ("酒店", "Taproom", "sakaten", 1), ("酒舗", "Taproom", "shuho", 1),
+        ("料亭", "Restaurant", "ryoutei", 1), ("茶寮", "Tea Room", "saryou", 1),
+        ("サロン", "Salon", "saron", 1),
+    ],
+    inn=[
+        ("宿屋", "Inn", "yadoya", 4), ("旅籠", "Lodge", "hatago", 2), ("旅荘", "Lodge", "ryosou", 1),
+        ("旅館", "Guesthouse", "ryokan", 2), ("下宿", "Boarding House", "geshuku", 1),
+        ("山荘", "Chalet", "sansou", 1), ("ホテル", "Hotel", "hoteru", 1),
+    ],
+)
+# 屋号の型と重み。西洋風は日英対訳、和風は漢字+ローマ字
+#   adj=形容詞+名詞 / and=AとB / bare=名詞だけ / creature_act=生き物の動作 / person_kin=人名+親族 /
+#   person_thing=人名の物 / type_first=種類が前 / kanji=漢字二字 / abstract=抽象語 / word=和の単語
+TAVERN_PATTERNS_WESTERN = dict(
+    adj=20, **{"and": 9}, bare=5, creature_act=16, person_kin=8, person_thing=6,
+    type_first=10, kanji=14, abstract=8,
+)
+TAVERN_PATTERNS_WAFUU = dict(
+    word=26, kanji=24, abstract=10, creature_act=14, person_kin=8, person_thing=6, type_first=12,
 )
 
 # 和風: (日本語, ローマ字)
@@ -228,8 +337,24 @@ WAFUU_WORDS = [
     ("暁", "akatsuki"), ("朧月", "oboroduki"), ("千鳥", "chidori"), ("初雁", "hatsukari"),
     ("紅葉", "momiji"), ("夕月", "yuuzuki"), ("岩清水", "iwashimizu"),
 ]
+# 和風の「◯◯の△△」で使う生き物: (日本語, ローマ字)
+WAFUU_CREATURES = [
+    ("鶴", "tsuru"), ("亀", "kame"), ("狐", "kitsune"), ("狸", "tanuki"), ("猫", "neko"),
+    ("鯉", "koi"), ("鹿", "shika"), ("猪", "inoshishi"), ("鴉", "karasu"), ("梟", "fukurou"),
+    ("狼", "ookami"), ("熊", "kuma"), ("兎", "usagi"), ("馬", "uma"), ("竜", "ryuu"),
+    ("鶏", "niwatori"), ("蛍", "hotaru"), ("河童", "kappa"), ("天狗", "tengu"), ("鬼", "oni"),
+]
 # 和風の接尾: (日本語, ローマ字, 重み)
 WAFUU_TAVERN_SUFFIXES = dict(
-    tavern=[("屋", "ya", 4), ("亭", "tei", 3), ("の酒処", " no Sakedokoro", 2)],
-    inn=[("屋", "ya", 3), ("荘", "sou", 2), ("の湯", " no Yu", 2), ("の宿", " no Yado", 2)],
+    tavern=[
+        ("屋", "ya", 4), ("亭", "tei", 3), ("の酒処", " no Sakedokoro", 2), ("酒蔵", "sakagura", 1),
+        ("茶屋", "chaya", 2), ("茶寮", "saryou", 1), ("小料理屋", "koryouriya", 1),
+        ("食事処", "shokujidokoro", 1), ("居酒屋", "izakaya", 1), ("軒", "ken", 1),
+    ],
+    inn=[
+        ("屋", "ya", 3), ("荘", "sou", 2), ("の湯", " no Yu", 2), ("の宿", " no Yado", 2),
+        ("旅籠", "hatago", 1), ("旅館", "ryokan", 1), ("旅荘", "ryosou", 1), ("館", "kan", 1),
+        ("の山荘", " no Sansou", 1), ("下宿", "geshuku", 1), ("の定宿", " no Jouyado", 1),
+        ("軒", "ken", 1),
+    ],
 )

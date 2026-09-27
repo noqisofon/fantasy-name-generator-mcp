@@ -57,10 +57,20 @@ from .extra_data import (
     EXTRA_PLACE_KINDS_JA,
     EXTRA_PLACES,
     GOVERNMENTS,
+    KANJI_A,
+    KANJI_B,
+    KANJI_COLORS,
     KIND_JA_TERM,
     NOUN_LIVING,
     NOUN_OBJECT,
+    TAVERN_ABSTRACT,
+    TAVERN_ACTS,
+    TAVERN_KIN,
+    TAVERN_PATTERNS_WAFUU,
+    TAVERN_PATTERNS_WESTERN,
     TAVERN_SUFFIXES,
+    TAVERN_VENUES,
+    WAFUU_CREATURES,
     WAFUU_TAVERN_SUFFIXES,
     WAFUU_WORDS,
 )
@@ -420,7 +430,7 @@ BLOCK_SUBSTR_JP = ["unko", "chinko", "manko", "chinpo", "oppai"]
 # 名前全体がこれと一致するときだけ弾く語 (Cassian の "ass" や Titania の "tit" を巻き込まないため)
 BLOCK_EXACT = [
     "ass", "sex", "cum", "tit", "baka", "aho", "shine", "kill", "die", "poo",
-    "napoli", "milano", "roma", "paris", "london", "berlin", "madrid", "athens",
+    "pus", "napoli", "milano", "roma", "paris", "london", "berlin", "madrid", "athens",
     "tokyo", "kyoto", "osaka",
 ]
 BLOCKLIST = BLOCK_SUBSTR_EN + BLOCK_SUBSTR_JP + BLOCK_EXACT  # 互換用 (全部入りの一覧)
@@ -855,33 +865,173 @@ def _wpick(r, seq):
     return r.choices(seq, weights=[x[-1] for x in seq], k=1)[0]
 
 
-def _western_tavern(r, kind, whimsy=0.25):
+# 人名の屋号 (「リーター兄さん亭」など) に付けて自然な語尾
+_PERSON_SUFFIX_OK = {"亭", "軒", "の宿", "の宿屋", "の酒場", "の飲み屋", "荘", "館", "酒場", "の旅館"}
+
+
+def _person(r, spec):
+    """屋号に入れる人名を作る。(英語表記, カナ)"""
+    for _ in range(10):
+        stem = _build_stem(spec, r, r.randint(1, 2))
+        gender = r.choice(["male", "female", "neutral"])
+        ending = ""
+        if r.random() < spec["ending_p"]:
+            ending = r.choice(spec["endings"].get(gender) or spec["endings"]["neutral"])
+        n = _join(stem, ending, spec)
+        if _valid(n, spec, 4, 9):  # 3文字以下は pus のような英単語と紛れるので避ける
+            return n.capitalize(), _kana(n, spec)
+    return "Ilda", "イルダ"
+
+
+def _adj_noun(r, whimsy):
+    """形容詞+名詞 → (英語, 日本語, 使った名詞)。物には、whimsy の確率だけ生き物用の形容詞も付ける"""
     living = r.random() < 0.55
     n_en, n_ja = r.choice(NOUN_LIVING if living else NOUN_OBJECT)
+    personify = (not living) and r.random() < whimsy
+    pool = ADJ_ANY + (ADJ_LIVING + ADJ_POETIC if (living or personify) else [])
+    a_en, a_ja = r.choice(pool)
+    return f"{a_en} {n_en}", f"{a_ja}{n_ja}", n_en
+
+
+def _en_tail(core: str, sfx_en: str) -> str:
+    return core + (f" {sfx_en}" if sfx_en else "")
+
+
+def _pick_pattern(r, table: dict) -> str:
+    return r.choices(list(table), weights=list(table.values()), k=1)[0]
+
+
+def _person_suffix(r, seq):
+    ok = [x for x in seq if x[1] in _PERSON_SUFFIX_OK]
+    return _wpick(r, ok or seq)
+
+
+def _western_tavern(r, kind, whimsy=0.25, spec=None):
+    """西洋風の屋号。日本語(ja)と英語(en)の対訳を返す"""
+    spec = spec or STYLES["human"]
+    pat = _pick_pattern(r, TAVERN_PATTERNS_WESTERN)
     sfx_en, sfx_ja, _w = _wpick(r, TAVERN_SUFFIXES[kind])
-    pattern = r.choices(["adj", "and", "bare"], [55, 30, 15], k=1)[0]
-    words = {n_en}
-    if pattern == "adj":
-        # 物には本来「生き物用」の形容詞を付けないが、whimsy の確率で擬人化を許す
-        # (眠れるランタン亭・眠らざるランタン亭のような詩的な屋号)
-        personify = (not living) and r.random() < whimsy
-        pool = ADJ_ANY + (ADJ_LIVING + ADJ_POETIC if (living or personify) else [])
-        a_en, a_ja = r.choice(pool)
-        core_en, core_ja = f"{a_en} {n_en}", f"{a_ja}{n_ja}"
-    elif pattern == "and":
-        n2_en, n2_ja = r.choice([w for w in NOUN_LIVING + NOUN_OBJECT if w[0] != n_en])
-        words.add(n2_en)
-        core_en, core_ja = f"{n_en} and {n2_en}", f"{n_ja}と{n2_ja}"
-    else:
-        core_en, core_ja = n_en, n_ja
-    en = f"The {core_en}" + (f" {sfx_en}" if sfx_en else "")
-    return {"ja": core_ja + sfx_ja, "en": en, "kind": kind}, words
+    words = set()
+    if pat == "adj":
+        en_c, ja_c, n = _adj_noun(r, whimsy)
+        words, en, ja = {n}, _en_tail(f"The {en_c}", sfx_en), ja_c + sfx_ja
+    elif pat == "and":
+        n1_en, n1_ja = r.choice(NOUN_LIVING + NOUN_OBJECT)
+        n2_en, n2_ja = r.choice([w for w in NOUN_LIVING + NOUN_OBJECT if w[0] != n1_en])
+        words = {n1_en, n2_en}
+        en, ja = _en_tail(f"The {n1_en} and {n2_en}", sfx_en), f"{n1_ja}と{n2_ja}{sfx_ja}"
+    elif pat == "bare":
+        n_en, n_ja = r.choice(NOUN_LIVING + NOUN_OBJECT)
+        words, en, ja = {n_en}, _en_tail(f"The {n_en}", sfx_en), n_ja + sfx_ja
+    elif pat == "creature_act":
+        c_en, c_ja = r.choice(NOUN_LIVING)
+        a_ja, a_en, _ro = r.choice(TAVERN_ACTS)
+        words = {c_en}
+        en, ja = _en_tail(f"The {c_en}'s {a_en}", sfx_en), f"{c_ja}の{a_ja}{sfx_ja}"
+    elif pat == "person_kin":
+        sfx_en, sfx_ja, _w = _person_suffix(r, TAVERN_SUFFIXES[kind])
+        n_en, n_ja = _person(r, spec)
+        k_ja, k_en, _ro = r.choice(TAVERN_KIN)
+        words = {n_en}
+        en, ja = _en_tail(f"{k_en} {n_en}'s", sfx_en or "Tavern"), f"{n_ja}{k_ja}{sfx_ja}"
+    elif pat == "person_thing":
+        sfx_en, sfx_ja, _w = _person_suffix(r, TAVERN_SUFFIXES[kind])
+        n_en, n_ja = _person(r, spec)
+        t_ja, t_en, _ro = r.choice(TAVERN_ACTS)
+        words = {n_en}
+        en, ja = _en_tail(f"{n_en}'s {t_en}", sfx_en), f"{n_ja}の{t_ja}{sfx_ja}"
+    elif pat == "type_first":
+        v_ja, v_en, _ro, _w2 = _wpick(r, TAVERN_VENUES[kind])
+        src = r.choices(["adj", "person", "abstract"], [55, 30, 15], k=1)[0]
+        if src == "adj":
+            en_c, ja_c, n = _adj_noun(r, whimsy)
+            words, en, ja = {n}, f"The {en_c} {v_en}", f"{v_ja} {ja_c}"
+        elif src == "person":
+            n_en, n_ja = _person(r, spec)
+            words, en, ja = {n_en}, f"{n_en}'s {v_en}", f"{v_ja} {n_ja}"
+        else:
+            b_ja, b_en, _ro2 = r.choice(TAVERN_ABSTRACT)
+            words, en, ja = {b_en}, f"The {b_en} {v_en}", f"{v_ja} {b_ja}"
+    elif pat == "kanji":
+        a_ja, a_en, _r1 = r.choice(KANJI_A)
+        b_ja, b_en, _r2 = r.choice(KANJI_B)
+        gloss = f"{a_en} {b_en}"  # 英語は常に「色 + 自然」(Jade Moon)
+        # 「月翠」のように 自然+色 の並びも、色の語のときだけ使う
+        comp_ja = b_ja + a_ja if (a_ja in KANJI_COLORS and r.random() < 0.2) else a_ja + b_ja
+        words, en, ja = {comp_ja}, _en_tail(f"The {gloss}", sfx_en), comp_ja + sfx_ja
+    else:  # abstract
+        b_ja, b_en, _ro2 = r.choice(TAVERN_ABSTRACT)
+        words, en, ja = {b_en}, _en_tail(f"The {b_en}", sfx_en), b_ja + sfx_ja
+    return {"ja": ja, "en": en, "kind": kind, "pattern": pat}, words
 
 
-def _wafuu_tavern(r, kind):
-    w_ja, w_ro = r.choice(WAFUU_WORDS)
+def _ro_join(base: str, sfx_ro: str) -> str:
+    """ローマ字表記の連結。「 no Yu」のように空白で始まる語尾はそのまま、複数語の語幹にはハイフンを挟む"""
+    if sfx_ro.startswith(" "):
+        return base + sfx_ro
+    return f"{base}-{sfx_ro}" if (" " in base or len(sfx_ro) > 4) else base + sfx_ro
+
+
+def _wafuu_tavern(r, kind, whimsy=0.25, spec=None):
+    """和風の屋号。漢字表記(ja)とローマ字(en)を返す"""
+    spec = spec or STYLES["human"]
+    pat = _pick_pattern(r, TAVERN_PATTERNS_WAFUU)
     sfx_ja, sfx_ro, _w = _wpick(r, WAFUU_TAVERN_SUFFIXES[kind])
-    return {"ja": w_ja + sfx_ja, "en": w_ro.capitalize() + sfx_ro, "kind": kind}, {w_ro}
+    if pat == "word":
+        w_ja, w_ro = r.choice(WAFUU_WORDS)
+        ja, en, words = w_ja + sfx_ja, _ro_join(w_ro.capitalize(), sfx_ro), {w_ro}
+    elif pat == "kanji":
+        a_ja, _a_en, a_ro = r.choice(KANJI_A)
+        b_ja, _b_en, b_ro = r.choice(KANJI_B)
+        comp_ja, comp_ro = a_ja + b_ja, (a_ro + b_ro).capitalize()
+        ja, en, words = comp_ja + sfx_ja, _ro_join(comp_ro, sfx_ro), {comp_ja}
+    elif pat == "abstract":
+        b_ja, _b_en, b_ro = r.choice(TAVERN_ABSTRACT)
+        ja, en, words = b_ja + sfx_ja, _ro_join(b_ro.title(), sfx_ro), {b_ro}
+    elif pat == "creature_act":
+        c_ja, c_ro = r.choice(WAFUU_CREATURES)
+        a_ja, _a_en, a_ro = r.choice(TAVERN_ACTS)
+        ja = f"{c_ja}の{a_ja}{sfx_ja}"
+        en = _ro_join(f"{c_ro.capitalize()} no {a_ro.capitalize()}", sfx_ro)
+        words = {c_ro}
+    elif pat == "person_kin":
+        sfx_ja, sfx_ro, _w = _person_suffix_wafuu(r, kind, _WAFUU_KIN_SFX)
+        n_en, n_ja = _person(r, spec)
+        k_ja, _k_en, k_ro = r.choice(TAVERN_KIN)
+        ja, en, words = f"{n_ja}{k_ja}{sfx_ja}", _ro_join(f"{n_en} {k_ro}", sfx_ro), {n_en}
+    elif pat == "person_thing":
+        sfx_ja, sfx_ro, _w = _person_suffix_wafuu(r, kind, _WAFUU_THING_SFX)
+        n_en, n_ja = _person(r, spec)
+        t_ja, _t_en, t_ro = r.choice(TAVERN_ACTS)
+        ja = f"{n_ja}の{t_ja}{sfx_ja}"
+        en, words = _ro_join(f"{n_en} no {t_ro.capitalize()}", sfx_ro), {n_en}
+    else:  # type_first
+        v_ja, _v_en, v_ro, _w2 = _wpick(r, TAVERN_VENUES[kind])
+        src = r.choices(["word", "kanji", "abstract", "person"], [35, 30, 15, 20], k=1)[0]
+        if src == "word":
+            p_ja, p_ro = r.choice(WAFUU_WORDS)
+            p_ro = p_ro.capitalize()
+        elif src == "kanji":
+            a_ja, _a, a_ro = r.choice(KANJI_A)
+            b_ja, _b, b_ro = r.choice(KANJI_B)
+            p_ja, p_ro = a_ja + b_ja, (a_ro + b_ro).capitalize()
+        elif src == "abstract":
+            p_ja, _e, p_ro = r.choice(TAVERN_ABSTRACT)
+            p_ro = p_ro.title()
+        else:
+            p_ro, p_ja = _person(r, spec)
+        ja, en, words = f"{v_ja} {p_ja}", f"{v_ro.capitalize()} {p_ro}", {p_ja}
+    return {"ja": ja, "en": en, "kind": kind, "pattern": pat}, words
+
+
+# 和風で「人名+親族」「人名の物」に付けて自然な語尾 (「おばちゃん屋」のような不自然なものを除く)
+_WAFUU_KIN_SFX = {"亭", "軒", "の宿", "荘", "の酒処", "茶屋", "居酒屋", "館"}
+_WAFUU_THING_SFX = _WAFUU_KIN_SFX | {"屋", "の湯", "の山荘"}
+
+
+def _person_suffix_wafuu(r, kind, allowed):
+    ok = [x for x in WAFUU_TAVERN_SUFFIXES[kind] if x[0] in allowed]
+    return _wpick(r, ok or WAFUU_TAVERN_SUFFIXES[kind])
 
 
 def tavern_names(
@@ -891,27 +1041,27 @@ def tavern_names(
     seed: int | str | None = None,
     avoid: list[str] | None = None,
     whimsy: float = 0.25,
+    style: str = "human",
 ) -> dict:
-    """酒場・宿屋の屋号。西洋風は日英対訳 (酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字。"""
+    """酒場・宿屋の屋号。西洋風は日英対訳 (酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字。
+    「生き物の動作」(ケンタウロスの溜息亭)・「人名+親族」(バーブラおばあ亭)・「種類が前」(宿屋 キャスリン)・
+    漢字二字(金海亭)・抽象語(流浪亭)など、多くの型を混ぜる。人名の響きは style で選ぶ。"""
     if tone not in ("western", "wafuu"):
         raise ValueError("tone must be western / wafuu")
     if kind not in ("any", "tavern", "inn"):
         raise ValueError("kind must be any / tavern / inn")
+    spec = _get_style(style)
     count = _clamp_count(count)
     seed, rng = _prep(seed)
     taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
     whimsy = max(0.0, min(float(whimsy), 1.0))
-    if tone == "western":
-        def make(r, k):
-            return _western_tavern(r, k, whimsy)
-    else:
-        make = _wafuu_tavern
+    make = _western_tavern if tone == "western" else _wafuu_tavern
     results, seen, used = [], set(), set()
     tries = count * 200
     for i in range(tries):
         if len(results) >= count:
             break
-        rec, words = make(rng, kind if kind != "any" else rng.choice(["tavern", "inn"]))
+        rec, words = make(rng, kind if kind != "any" else rng.choice(["tavern", "inn"]), whimsy, spec)
         if rec["en"].lower() in taken or rec["ja"].lower() in taken or rec["en"].lower() in seen:
             continue
         # 前半は同じ単語(鹿など)を使い回さない。候補が尽きそうなら後半は許す
@@ -1195,7 +1345,7 @@ def _build_server():
             decorate=decorate,
         )
 
-    @mcp.tool(description="酒場・宿屋の屋号を生成します。西洋風は日英対訳(酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字(月見亭 / Tsukimitei)。")
+    @mcp.tool(description="酒場・宿屋の屋号を生成します。西洋風は日英対訳(酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字(月見亭 / Tsukimitei)。「ケンタウロスの溜息亭」(生き物の動作)・「バーブラおばあ亭」(人名+親族)・「宿屋 キャスリン」(種類が前)・「金海亭」(漢字二字)・「流浪亭」(抽象語)など、多くの型が混ざります。")
     def generate_tavern_names(
         tone: Annotated[
             TavernToneType,
@@ -1221,6 +1371,10 @@ def _build_server():
             float,
             Field(description="擬人化の出現率 0〜1 (既定0.25)。物に「眠れる」「眠らざる」などを付けた詩的な屋号(眠らざるランタン亭)が出る割合。0で無効。西洋風のみ", ge=0.0, le=1.0)
         ] = 0.25,
+        style: Annotated[
+            StyleType,
+            Field(description="屋号に入る人名(「バーブラおばあ亭」「宿屋 キャスリン」など)の響き。既定 human。elf / dwarf / orc / wafuu / arcane / southern も可")
+        ] = "human",
     ) -> dict:
         return tavern_names(
             tone=tone,
@@ -1229,6 +1383,7 @@ def _build_server():
             seed=seed,
             avoid=avoid,
             whimsy=whimsy,
+            style=style,
         )
 
     @mcp.tool(description="既存の名前リストからマルコフ連鎖で文字連接を学習し、「同じ世界っぽい」新しい名前を生成します。")

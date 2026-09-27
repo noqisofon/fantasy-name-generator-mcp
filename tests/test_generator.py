@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from fantasy_name_generator_mcp.cli import run as cli_run
-from fantasy_name_generator_mcp.extra_data import KIND_JA_TERM
+from fantasy_name_generator_mcp.extra_data import ADJ_LIVING, ADJ_POETIC, KIND_JA_TERM, NOUN_OBJECT
 from fantasy_name_generator_mcp.index import (
     _mora,
     _valid,
@@ -209,14 +209,19 @@ class TestFantasyNameGenerator(unittest.TestCase):
                 self.assertEqual(len({n["en"] for n in res["names"]}), 6)
                 for n in res["names"]:
                     self.assertTrue(n["ja"] and n["en"])
-        living_adj = r"(Sleeping|Drunken|Laughing|Dancing|Sleepless|Weeping) "
-        objects = r"(Lantern|Anchor|Barrel|Crown|Bell|Key|Candle|Mug)"
+        # 語彙表から条件を作る: 「生き物用の形容詞 + 物」(眠れるランタン等) を判定する
+        import re
+
+        living_adj = "|".join(re.escape(en) for en, _ja in ADJ_LIVING + ADJ_POETIC)
+        objects = "|".join(re.escape(en) for en, _ja in NOUN_OBJECT)
+        personified = re.compile(rf"\b({living_adj}) ({objects})\b")
         # whimsy=0: 生き物用の形容詞を物に付けない
-        for n in tavern_names("western", "any", 50, seed=1, whimsy=0)["names"]:
-            self.assertNotRegex(n["en"], living_adj + objects)
+        for seed in range(10):
+            for n in tavern_names("western", "any", 50, seed=seed, whimsy=0)["names"]:
+                self.assertIsNone(personified.search(n["en"]), n["en"])
         # whimsy=1: 擬人化した屋号 (眠れるランタン亭など) が出る
         hits = [n for n in tavern_names("western", "any", 50, seed=1, whimsy=1)["names"]
-                if __import__("re").search(living_adj + objects, n["en"])]
+                if personified.search(n["en"])]
         self.assertTrue(hits)
         a = tavern_names("western", "inn", 5, seed=9)
         b = tavern_names("western", "inn", 5, seed=9)
@@ -282,6 +287,41 @@ class TestFantasyNameGenerator(unittest.TestCase):
         _code, out, _err = self._cli("styles")
         for word in ("wafuu", "desert", "empire"):
             self.assertIn(word, out)
+
+    def test_tavern_pattern_variety(self):
+        # 型が多様に混ざる (形容詞+名詞ばかりにならない)
+        for tone, minimum in (("western", 7), ("wafuu", 6)):
+            res = tavern_names(tone=tone, kind="any", count=50, seed=3)["names"]
+            self.assertEqual(len(res), 50, tone)
+            self.assertGreaterEqual(len({n["pattern"] for n in res}), minimum, tone)
+        west = tavern_names("western", "any", 50, seed=3)["names"]
+        # 語尾も一種類に偏らない (亭・酒場・宿・館…)
+        endings = {n["ja"][-1] for n in west}
+        self.assertGreaterEqual(len(endings), 6)
+        patterns = {n["pattern"] for n in west}
+        for expected in ("creature_act", "type_first", "kanji", "person_kin"):
+            self.assertIn(expected, patterns)
+
+    def test_tavern_english_is_well_formed(self):
+        bad = []
+        for seed in range(40):
+            for n in tavern_names("western", "any", 10, seed=seed)["names"]:
+                en = n["en"]
+                if en.endswith("'s") or "The That" in en or "  " in en:
+                    bad.append(en)
+        self.assertEqual(bad, [])
+
+    def test_tavern_person_style_and_shapes(self):
+        # 人名は style で響きが変わる。「種類が前」は「宿屋 名前」の形
+        for style in ("human", "elf", "wafuu"):
+            res = tavern_names("western", "inn", 30, seed=2, style=style)["names"]
+            self.assertEqual(len(res), 30, style)
+        tf = [n for n in tavern_names("western", "any", 50, seed=5)["names"] if n["pattern"] == "type_first"]
+        self.assertTrue(tf)
+        for n in tf:
+            self.assertIn(" ", n["ja"])
+        with self.assertRaises(ValueError):
+            tavern_names(style="robot")
 
 
 
