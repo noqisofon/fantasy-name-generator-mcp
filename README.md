@@ -23,8 +23,11 @@ LLM が命名を行う際に陥りがちな **「ネオ〜」「シャドウ〜�
 ### 動作確認（デモ実行）
 
 ```bash
-# uv を使ってデモを実行
+# uv で実行する場合
 uv run fantasy-name-generator-mcp --demo
+
+# または python モジュールとして実行する場合
+python -m fantasy_name_generator_mcp --demo
 ```
 
 ---
@@ -35,18 +38,8 @@ uv run fantasy-name-generator-mcp --demo
 
 設定ファイル（Windows: `%APPDATA%\Claude\claude_desktop_config.json`, macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`）に以下を追加します。
 
-```json
-{
-  "mcpServers": {
-    "fantasy-names": {
-      "command": "uvx",
-      "args": ["--from", "fantasy-name-generator-mcp", "fantasy-name-generator-mcp"]
-    }
-  }
-}
-```
-
-※ ローカル開発環境のソースから直接起動する場合：
+#### ローカル環境（推奨・即座に動作）
+本リポジトリのパスを指定して実行します。
 
 ```json
 {
@@ -64,11 +57,28 @@ uv run fantasy-name-generator-mcp --demo
 }
 ```
 
+#### PyPI 公開後の設定（配布用）
+※ パッケージを PyPI に公開した後に利用できます。
+
+```json
+{
+  "mcpServers": {
+    "fantasy-names": {
+      "command": "uvx",
+      "args": ["--from", "fantasy-name-generator-mcp", "fantasy-name-generator-mcp"]
+    }
+  }
+}
+```
+
 ### Cursor / Windsurf
 
 MCP 設定画面にて以下を追加します：
-- **Name**: `fantasy-names`
-- **Command**: `uvx --from fantasy-name-generator-mcp fantasy-name-generator-mcp`
+
+- **ローカル環境（推奨）**:
+  - **Command**: `uv --directory C:/Users/nedri/Projects/fantasy-name-generator-mcp run fantasy-name-generator-mcp`
+- **PyPI 公開後**:
+  - **Command**: `uvx --from fantasy-name-generator-mcp fantasy-name-generator-mcp`
 
 ---
 
@@ -77,37 +87,37 @@ MCP 設定画面にて以下を追加します：
 ### 1. `generate_character_names`
 キャラクター名を生成します。
 
-| 引数 | 型 | 既定値 | 説明 |
-| :--- | :--- | :--- | :--- |
-| `style` | `Literal` | `"elf"` | スタイル (`elf`, `dwarf`, `human`, `orc`, `wafuu`, `arcane`, `southern`) |
-| `count` | `int` | `5` | 生成数 (1〜50) |
-| `gender` | `Literal` | `"any"` | 性別 (`any`, `male`, `female`, `neutral`) |
-| `with_family` | `bool` | `False` | 姓（ファミリーネーム）を付けるか |
-| `seed` | `int \| str \| None` | `None` | 乱数シード（同じシードなら完全に同じ結果が再現） |
-| `starts_with` | `str \| None` | `None` | 名前の頭文字指定 (例: `'ka'`, `'el'`) |
-| `avoid` | `list[str] \| None` | `None` | 除外したい名前リスト（予約済みの名前は自動除外） |
+| 引数          | 型                   | 既定値  | 説明                                                                     |
+| :------------ | :------------------- | :------ | :----------------------------------------------------------------------- |
+| `style`       | `Literal`            | `"elf"` | スタイル (`elf`, `dwarf`, `human`, `orc`, `wafuu`, `arcane`, `southern`) |
+| `count`       | `int`                | `5`     | 生成数 (1〜50)                                                           |
+| `gender`      | `Literal`            | `"any"` | 性別 (`any`, `male`, `female`, `neutral`)                                |
+| `with_family` | `bool`               | `False` | 姓（ファミリーネーム）を付けるか                                         |
+| `seed`        | `int \| str \| None` | `None`  | 乱数シード（同じシードなら完全に同じ結果が再現）                         |
+| `starts_with` | `str \| None`        | `None`  | 名前の頭文字指定 (例: `'ka'`, `'el'`)                                    |
+| `avoid`       | `list[str] \| None`  | `None`  | 除外したい名前リスト（予約済みの名前は自動除外）                         |
 
 ### 2. `generate_place_names`
 地名を生成します。
 
-| 引数 | 型 | 既定値 | 説明 |
-| :--- | :--- | :--- | :--- |
-| `style` | `Literal` | `"elf"` | 命名スタイル |
-| `kind` | `Literal` | `"town"` | 地名種別 (`town`, `city`, `mountain`, `river`, `forest`, `lake`, `fortress`, `kingdom`) |
-| `count` | `int` | `5` | 生成数 (1〜50) |
-| `seed` | `int \| str \| None` | `None` | 乱数シード |
-| `starts_with` | `str \| None` | `None` | 地名の頭文字指定 |
-| `avoid` | `list[str] \| None` | `None` | 除外リスト |
+| 引数          | 型                   | 既定値   | 説明                                                                                    |
+| :------------ | :------------------- | :------- | :-------------------------------------------------------------------------------------- |
+| `style`       | `Literal`            | `"elf"`  | 命名スタイル                                                                            |
+| `kind`        | `Literal`            | `"town"` | 地名種別 (`town`, `city`, `mountain`, `river`, `forest`, `lake`, `fortress`, `kingdom`) |
+| `count`       | `int`                | `5`      | 生成数 (1〜50)                                                                          |
+| `seed`        | `int \| str \| None` | `None`   | 乱数シード                                                                              |
+| `starts_with` | `str \| None`        | `None`   | 地名の頭文字指定                                                                        |
+| `avoid`       | `list[str] \| None`  | `None`   | 除外リスト                                                                              |
 
 ### 3. `generate_names_from_examples`
 既存の名前リストからマルコフ連鎖で「同じ世界っぽい」名前を生成します。
 
-| 引数 | 型 | 既定値 | 説明 |
-| :--- | :--- | :--- | :--- |
-| `examples` | `list[str]` | **必須** | サンプル名リスト (3個以上、10個以上推奨) |
-| `count` | `int` | `5` | 生成数 (1〜50) |
-| `order` | `int` | `2` | マルコフ連鎖の次数 (1〜3) |
-| `seed` | `int \| str \| None` | `None` | 乱数シード |
+| 引数       | 型                   | 既定値   | 説明                                     |
+| :--------- | :------------------- | :------- | :--------------------------------------- |
+| `examples` | `list[str]`          | **必須** | サンプル名リスト (3個以上、10個以上推奨) |
+| `count`    | `int`                | `5`      | 生成数 (1〜50)                           |
+| `order`    | `int`                | `2`      | マルコフ連鎖の次数 (1〜3)                |
+| `seed`     | `int \| str \| None` | `None`   | 乱数シード                               |
 
 ### 4. `reserve_names` / `list_reserved` / `release_names`
 - `reserve_names(names, note)`: 採用した名前を予約リストに記録（重複回避用）。
@@ -133,15 +143,15 @@ MCP 設定画面にて以下を追加します：
 
 ## 🎭 命名スタイル一覧
 
-| スタイルキー | ラベル | 特徴・サンプル |
-| :--- | :--- | :--- |
-| `elf` | エルフ風 | 流麗で母音が多い（例: ロレンディル、サエララエル） |
-| `dwarf` | ドワーフ風 | 子音が硬く短い（例: ブラクドゥル、カルグルガルン） |
-| `human` | 中世西洋風・人間 | 古い英独仏のような素朴な響き（例: オルドリック、パレイ） |
-| `orc` | オーク風 | 濁音や破裂音が多い荒々しい響き（例: グラクザグ、ウクモグ） |
-| `wafuu` | 和風 | ひらがな表記の自然な和風名（例: らすけ、にしやま） |
-| `arcane` | 古代・魔術・異形 | 古い呪文や邪神風の響き（例: ヴァクソス、ヌヴェクス） |
-| `southern` | 南方・交易都市風 | 地中海〜中東の商業都市風の響き（例: サンタヌヤーン系、ケビノ） |
+| スタイルキー | ラベル           | 特徴・サンプル                                                 |
+| :----------- | :--------------- | :------------------------------------------------------------- |
+| `elf`        | エルフ風         | 流麗で母音が多い（例: ロレンディル、サエララエル）             |
+| `dwarf`      | ドワーフ風       | 子音が硬く短い（例: ブラクドゥル、カルグルガルン）             |
+| `human`      | 中世西洋風・人間 | 古い英独仏のような素朴な響き（例: オルドリック、パレイ）       |
+| `orc`        | オーク風         | 濁音や破裂音が多い荒々しい響き（例: グラクザグ、ウクモグ）     |
+| `wafuu`      | 和風             | ひらがな表記の自然な和風名（例: らすけ、にしやま）             |
+| `arcane`     | 古代・魔術・異形 | 古い呪文や邪神風の響き（例: ヴァクソス、ヌヴェクス）           |
+| `southern`   | 南方・交易都市風 | 地中海〜中東の商業都市風の響き（例: サンタヌヤーン系、ケビノ） |
 
 ---
 

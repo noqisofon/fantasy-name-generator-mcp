@@ -95,6 +95,26 @@ _STAND = {
 _DIGRAPHS = {"sh", "ch", "th", "ts", "ph", "gh", "ck", "kh", "wh"}
 
 
+_YOUON = {
+    "k": {"a": "キャ", "u": "キュ", "e": "キェ", "o": "キョ"},
+    "g": {"a": "ギャ", "u": "ギュ", "e": "ギェ", "o": "ギョ"},
+    "s": {"a": "シャ", "u": "シュ", "e": "シェ", "o": "ショ"},
+    "z": {"a": "ジャ", "u": "ジュ", "e": "ジェ", "o": "ジョ"},
+    "j": {"a": "ジャ", "u": "ジュ", "e": "ジェ", "o": "ジョ"},
+    "t": {"a": "チャ", "u": "チュ", "e": "チェ", "o": "チョ"},
+    "d": {"a": "ヂャ", "u": "デュ", "e": "デェ", "o": "ヂョ"},
+    "n": {"a": "ニャ", "u": "ニュ", "e": "ニェ", "o": "ニョ"},
+    "h": {"a": "ヒャ", "u": "ヒュ", "e": "ヒェ", "o": "ヒョ"},
+    "b": {"a": "ビャ", "u": "ビュ", "e": "ビェ", "o": "ビョ"},
+    "p": {"a": "ピャ", "u": "ピュ", "e": "ピェ", "o": "ピョ"},
+    "m": {"a": "ミャ", "u": "ミュ", "e": "ミェ", "o": "ミョ"},
+    "r": {"a": "リャ", "u": "リュ", "e": "リェ", "o": "リョ"},
+    "l": {"a": "リャ", "u": "リュ", "e": "リェ", "o": "リョ"},
+    "f": {"a": "フィャ", "u": "フュ", "e": "フェ", "o": "フィョ"},
+    "v": {"a": "ヴィャ", "u": "ヴュ", "e": "ヴェ", "o": "ヴィョ"},
+}
+
+
 def to_katakana(name: str, is_wafuu: bool = False) -> str:
     s = name.lower().replace("'", "").replace("-", "").replace(" ", "")
     out = []
@@ -157,6 +177,25 @@ def to_katakana(name: str, is_wafuu: bool = False) -> str:
 
         j = i + step
         nc = s[j] if j < n_len else ""
+
+        # 拗音チェック: cons + 'y' + 母音 (例: nya -> ニャ, kyo -> キョ, ryu -> リュ)
+        if nc == "y" and j + 1 < n_len and s[j + 1] in VOW:
+            y_vow = s[j + 1]
+            if cons in _YOUON and y_vow in _YOUON[cons]:
+                out.append(_YOUON[cons][y_vow])
+                # 長音チェック (例: nyaan -> ニャーン)
+                if not is_wafuu and j + 2 < n_len and s[j + 2] == y_vow:
+                    out.append("ー")
+                    i = j + 3
+                else:
+                    i = j + 2
+                continue
+            elif y_vow == "i" and cons in _ROWS:
+                # nyi -> ニ, kyi -> キ
+                out.append(_ROWS[cons][1])
+                i = j + 2
+                continue
+
         if nc in VOW and nc != "" and cons in _ROWS:
             out.append(_ROWS[cons][ROWV.index(nc)])
             # 子音 + 同一母音連続 (例: vaar -> ヴァー + r)
