@@ -54,7 +54,16 @@ uv run fantasy-name-generator-mcp styles                              # スタ�
 | `reserve` / `reserved` / `release` | 予約の追加・一覧・解除   | `--note`                                                                        |
 | `styles`                           | スタイル等の一覧と見本   |                                                                                 |
 
-共通のオプション: `-n` 個数、`--seed` 乱数シード（同じ seed なら同じ結果）、`--avoid` 除外する名前、`--json` JSON で出力。
+共通のオプション: `-n` 個数（1〜10000）、`--seed` 乱数シード（同じ seed なら同じ結果）、`--avoid` 除外する名前、`--json` JSON で出力。
+
+**大量に作るとき**: `char` / `place` / `country` は、既定では「似た名前（綴りの違いが 2 文字以内）」を避けます。数千個を作ると、スタイルによっては候補が尽きて、個数が足りなくなります（そのときは標準エラーに知らせます）。`--loose` を付けると、完全な重複だけを避けるので、要求した個数がそろいます。
+
+```bash
+uv run fantasy-name-generator-mcp country -s human -n 3000            # 約5秒
+uv run fantasy-name-generator-mcp char -s wafuu -n 3000 --loose       # 個数がそろわないときは --loose
+```
+
+MCP ツール（Claude から呼ぶ場合）は、AI に返す量を抑えるため、1 回 50 個までです。それ以上が必要なときは、コマンドを使ってください。
 名前は標準出力に、seed や注記は標準エラーに出るので、`| clip` やファイルへのリダイレクトでも名前だけが取れます。
 1 つも作れなかったときの終了コードは `1`、引数や値の誤りは `2` です。`-h` で全オプションを確認できます。
 

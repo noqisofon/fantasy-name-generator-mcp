@@ -47,6 +47,7 @@ EPILOG = f"""\
 """
 
 TAVERN_KIND_JA = {"tavern": "酒場", "inn": "宿屋"}
+LOOSE_HELP = "似た名前も許し、完全な重複だけを避ける (数千個の大量生成で、個数が足りないときに)"
 
 
 def _seed(value: str):
@@ -60,7 +61,7 @@ def _seed(value: str):
 def _common(count: bool = True, seed: bool = True, avoid: bool = True) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
     if count:
-        p.add_argument("-n", "--count", type=int, default=5, help="生成する個数 (1〜50, 既定5)")
+        p.add_argument("-n", "--count", type=int, default=5, help="生成する個数 (1〜10000, 既定5)")
     if seed:
         p.add_argument("--seed", type=_seed, default=None,
                        help="乱数シード。同じ引数と seed なら同じ結果になる (省略時は自動)")
@@ -90,12 +91,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="性別 (既定 any)")
     c.add_argument("--family", action="store_true", help="姓も付ける")
     c.add_argument("--starts-with", metavar="文字列", help="先頭の文字列 (例: ka)")
+    c.add_argument("--loose", action="store_true", help=LOOSE_HELP)
 
     pl = sub.add_parser("place", parents=[_common()], help="地名 (町・砂漠・平原など)")
     pl.add_argument("-s", "--style", choices=styles, default="elf", help="スタイル (既定 elf)")
     pl.add_argument("-k", "--kind", choices=PLACE_KINDS, default="town", metavar="種別",
                     help="地名の種別 (既定 town): " + " / ".join(PLACE_KINDS))
     pl.add_argument("--starts-with", metavar="文字列", help="先頭の文字列")
+    pl.add_argument("--loose", action="store_true", help=LOOSE_HELP)
 
     co = sub.add_parser("country", parents=[_common()], help="国名 (政体つき)")
     co.add_argument("-s", "--style", choices=styles, default="elf", help="スタイル (既定 elf)")
@@ -106,6 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     co.add_argument("--plain", action="store_true",
                     help="型を混ぜず「名前+政体」だけにする (既定は、前置き・二つ名・並記なども混ぜる)")
     co.add_argument("--starts-with", metavar="文字列", help="先頭の文字列")
+    co.add_argument("--loose", action="store_true", help=LOOSE_HELP)
 
     t = sub.add_parser("tavern", parents=[_common()], help="酒場・宿屋の屋号")
     t.add_argument("-t", "--tone", choices=["western", "wafuu"], default="western",
@@ -245,15 +249,16 @@ def run(argv: list[str] | None = None) -> int:
     try:
         if cmd == "char":
             r = character_names(args.style, args.count, args.gender, args.seed, args.family,
-                                args.starts_with, avoid=args.avoid)
+                                args.starts_with, avoid=args.avoid, loose=args.loose)
             return _emit(r, args, _fmt_char)
         elif cmd == "place":
             r = place_names(args.style, args.kind, args.count, args.seed, args.starts_with,
-                            avoid=args.avoid)
+                            avoid=args.avoid, loose=args.loose)
             return _emit(r, args, _fmt_place)
         elif cmd == "country":
             r = country_names(args.style, args.government, args.count, args.seed,
-                              args.starts_with, avoid=args.avoid, decorate=not args.plain)
+                              args.starts_with, avoid=args.avoid, decorate=not args.plain,
+                              loose=args.loose)
             return _emit(r, args, _fmt_country)
         elif cmd == "tavern":
             r = tavern_names(args.tone, args.kind, args.count, args.seed, args.avoid, args.whimsy,

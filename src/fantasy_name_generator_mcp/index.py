@@ -36,7 +36,7 @@ import re
 import secrets
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Literal
@@ -542,6 +542,73 @@ def _mora(kana: str) -> int:
     return sum(1 for ch in kana if ch not in _SMALL_KANA)
 
 
+class _SimIndex:
+    """類似名の判定を速くする索引 (_too_similar と同じ結果を返す)。
+
+    名前から 2 文字まで削って作った断片を辞書に持つ。編集距離が 2 以下の名前どうしは、必ず断片を共有するので、
+    候補の名前だけ本当の編集距離で確かめればよい。総当たりだと個数の2乗で遅くなる (3000個で約4分) ところが、
+    ほぼ個数に比例する時間で済む。
+    """
+
+    def __init__(self, names=()):
+        self._names: set[str] = set()
+        self._buckets: dict[str, set[str]] = defaultdict(set)
+        for n in names:
+            self.add(n)
+
+    @staticmethod
+    def _variants(n: str) -> set[str]:
+        out = {n}
+        for i in range(len(n)):
+            d1 = n[:i] + n[i + 1:]
+            out.add(d1)
+            for j in range(i, len(d1)):
+                out.add(d1[:j] + d1[j + 1:])
+        return out
+
+    def add(self, name: str) -> None:
+        n = name.lower()
+        if n in self._names:
+            return
+        self._names.add(n)
+        for v in self._variants(n):
+            self._buckets[v].add(n)
+
+    def similar(self, name: str) -> bool:
+        n = name.lower()
+        if n in self._names:
+            return True
+        cand: set[str] = set()
+        for v in self._variants(n):
+            b = self._buckets.get(v)
+            if b:
+                cand |= b
+        for o in cand:
+            limit = 2 if min(len(n), len(o)) >= 5 else 1
+            if _levenshtein(n, o) <= limit:
+                return True
+        return False
+
+
+class _ExactIndex:
+    """完全な重複だけを避ける索引 (loose=True 用。_SimIndex と同じ口)"""
+
+    def __init__(self, names=()):
+        self._s = {n.lower() for n in names}
+
+    def add(self, name: str) -> None:
+        self._s.add(name.lower())
+
+    def similar(self, name: str) -> bool:
+        return name.lower() in self._s
+
+
+def _shortfall_note(got: int, want: int, loose: bool) -> str:
+    """個数が足りなかったときの注記 (CLI はこの文をそのまま表示する)"""
+    hint = "" if loose else "似た名前を避けているため候補が尽きました。loose=True (CLI は --loose) で完全な重複だけを避けるようにできます。"
+    return f"{got} 個しか作れませんでした (要求 {want})。{hint}starts_with や予約リストで絞っていれば、それも見直してください"
+
+
 def _valid(name, spec, min_len, max_len):
     n = name.lower()
     if not (min_len <= len(n) <= max_len):
@@ -577,33 +644,48 @@ def _get_style(style):
     return STYLES[style]
 
 
-def _clamp_count(count):
-    return max(1, min(int(count), 50))
+STALL_WINDOW = 20000  # 直近これだけの試行で、
+STALL_MIN_OK = 40  # 新しい名前がこの数未満しか取れなければ、候補が尽きたとみなして打ち切る
+MAX_COUNT = 10000  # ライブラリ / CLI で一度に作れる上限。MCP ツールは AI に返す量を抑えるため別途 50 まで
 
 
-def _collect(gen, count, spec, rng, avoid, starts_with, min_len, max_len, tries=None):
+def _clamp_count(count) -> int:
+    """個数を検証する。範囲外は黙って丸めず、エラーにして知らせる"""
+    n = int(count)
+    if not 1 <= n <= MAX_COUNT:
+        raise ValueError(f"count は 1〜{MAX_COUNT} で指定してください (指定: {n})")
+    return n
+
+
+def _collect(gen, count, spec, rng, avoid, starts_with, min_len, max_len, tries=None, loose=False):
     """gen(rng) -> (name, extra_dict). 重複・類似・先頭文字の偏りを避けながら count 個集める"""
-    results, taken = [], list(avoid)
+    results, taken = [], (_ExactIndex(avoid) if loose else _SimIndex(avoid))
     first_cap = max(2, math.ceil(count / 3)) if not starts_with else count
     first_seen = Counter()
     sw = (starts_with or "").lower()
     tries = tries or count * (300 if sw else 120)
+    recent_ok: deque[int] = deque()  # 直近の窓で新しい名前が取れた試行の番号
 
-    for _ in range(tries):
+    for i in range(tries):
         if len(results) >= count:
+            break
+        while recent_ok and recent_ok[0] <= i - STALL_WINDOW:
+            recent_ok.popleft()
+        if i >= STALL_WINDOW and len(recent_ok) < STALL_MIN_OK:  # 候補が尽きたら諦める
             break
         name, extra = gen(rng)
         if not _valid(name, spec, min_len, max_len):
             continue
         if sw and not name.lower().startswith(sw):
             continue
-        if _too_similar(name, taken):
+        if taken.similar(name):
             continue
         f = name[0].lower()
         if first_seen[f] >= first_cap:
             continue
         first_seen[f] += 1
-        taken.append(name)
+        taken.add(name)
+        recent_ok.append(i)
         entry = {"name": name.capitalize(), "kana": _kana(name, spec)}
         entry.update(extra)
         results.append(entry)
@@ -665,6 +747,7 @@ def character_names(
     min_len: int = 3,
     max_len: int = 11,
     avoid: list[str] | None = None,
+    loose: bool = False,
 ) -> dict:
     spec = _get_style(style)
     if gender not in ("any", "male", "female", "neutral"):
@@ -692,11 +775,11 @@ def character_names(
 
     res = _collect(
         gen, count, spec, rng, _reserved_names() + list(avoid or []),
-        starts_with, min_len, max_len
+        starts_with, min_len, max_len, loose=loose
     )
     out = {"style": style, "seed": seed, "names": res}
     if len(res) < count:
-        out["note"] = f"条件が厳しく {len(res)} 個しか作れませんでした (starts_with や予約リストを見直してください)"
+        out["note"] = _shortfall_note(len(res), count, loose)
     return out
 
 
@@ -709,6 +792,7 @@ def place_names(
     min_len: int = 4,
     max_len: int = 14,
     avoid: list[str] | None = None,
+    loose: bool = False,
 ) -> dict:
     spec = _get_style(style)
     if kind not in PLACE_KINDS:
@@ -739,7 +823,7 @@ def place_names(
 
     res = _collect(
         gen, count, spec, rng, _reserved_names() + list(avoid or []),
-        starts_with, min_len, max_len
+        starts_with, min_len, max_len, loose=loose
     )
     out = {
         "style": style,
@@ -750,7 +834,7 @@ def place_names(
         "note": "suffix_meaning は各スタイル固定の設定表 (同じ接尾辞は常に同じ意味)。地名の世界内一貫性に使える",
     }
     if len(res) < count:
-        out["note"] += f" / {len(res)} 個しか作れませんでした"
+        out["note"] += " / " + _shortfall_note(len(res), count, loose)
     return out
 
 
@@ -764,6 +848,7 @@ def country_names(
     max_len: int = 13,
     avoid: list[str] | None = None,
     decorate: bool = True,
+    loose: bool = False,
 ) -> dict:
     """国名。政体は既定でランダム (any)。decorate=True なら、地域名の前置き・二つ名・二つの名前の並記・
     カタカナ型などの「型」も混ぜる。日本語名(ja_name)・英語の正式名(en_formal)・元首の称号を返す。"""
@@ -815,13 +900,13 @@ def country_names(
 
     res = _collect(
         gen, count, spec, rng, _reserved_names() + list(avoid or []),
-        starts_with, min_len, max_len
+        starts_with, min_len, max_len, loose=loose
     )
     for e in res:
         _compose_country(e, spec)
     out = {"style": style, "government": government, "seed": seed, "names": res}
     if len(res) < count:
-        out["note"] = f"{len(res)} 個しか作れませんでした"
+        out["note"] = _shortfall_note(len(res), count, loose)
     return out
 
 

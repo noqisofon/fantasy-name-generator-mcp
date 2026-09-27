@@ -9,7 +9,10 @@ from pathlib import Path
 from fantasy_name_generator_mcp.cli import run as cli_run
 from fantasy_name_generator_mcp.extra_data import ADJ_LIVING, ADJ_POETIC, KIND_JA_TERM, NOUN_OBJECT
 from fantasy_name_generator_mcp.index import (
+    MAX_COUNT,
+    _SimIndex,
     _mora,
+    _too_similar,
     _valid,
     STYLES,
     PLACE_KINDS,
@@ -322,6 +325,56 @@ class TestFantasyNameGenerator(unittest.TestCase):
             self.assertIn(" ", n["ja"])
         with self.assertRaises(ValueError):
             tavern_names(style="robot")
+
+    # --- 大量生成・個数の上限・loose ---
+    def test_similarity_index_matches_bruteforce(self):
+        # 高速化した索引が、従来の総当たり (_too_similar) と同じ判定を返す
+        import random
+
+        rng = random.Random(7)
+        idx, taken = _SimIndex(), []
+        for _ in range(600):
+            n = "".join(rng.choice("abcde") for _ in range(rng.randint(3, 8)))
+            expected = _too_similar(n, taken)
+            self.assertEqual(idx.similar(n), expected, n)
+            if not expected:
+                idx.add(n)
+                taken.append(n)
+        self.assertGreater(len(taken), 20)
+
+    def test_count_limits_raise_instead_of_silent_clamp(self):
+        for fn in (character_names, place_names, country_names, tavern_names):
+            with self.assertRaises(ValueError):
+                fn(count=0)
+            with self.assertRaises(ValueError):
+                fn(count=MAX_COUNT + 1)
+
+    def test_bulk_generation(self):
+        # 50個を超える大量生成も、要求どおりの個数が重複なく出る
+        res = country_names(style="human", count=400, seed=1)["names"]
+        self.assertEqual(len(res), 400)
+        self.assertEqual(len({n["name"].lower() for n in res}), 400)
+        self.assertEqual(len(tavern_names("western", "any", 300, seed=1)["names"]), 300)
+
+    def test_loose_fills_when_strict_runs_out(self):
+        strict = place_names(style="southern", kind="desert", count=800, seed=1)
+        self.assertLess(len(strict["names"]), 800)
+        self.assertIn("個しか作れませんでした", strict["note"])
+        self.assertIn("loose", strict["note"])
+        loose = place_names(style="southern", kind="desert", count=800, seed=1, loose=True)
+        self.assertEqual(len(loose["names"]), 800)
+        self.assertEqual(len({n["name"].lower() for n in loose["names"]}), 800)
+
+    def test_cli_bulk_and_limits(self):
+        code, out, _err = self._cli("country", "-s", "human", "-n", "120", "--seed", "1")
+        self.assertEqual((code, len(out.strip().splitlines())), (0, 120))
+        code, out, err = self._cli("char", "-s", "wafuu", "-n", "300", "--loose", "--seed", "1")
+        self.assertEqual((code, len(out.strip().splitlines())), (0, 300))
+        code, _out, err = self._cli("char", "-n", "0")
+        self.assertEqual(code, 2)
+        self.assertIn("count は", err)
+        code, _out, err = self._cli("char", "-n", str(MAX_COUNT + 1))
+        self.assertEqual(code, 2)
 
 
 
