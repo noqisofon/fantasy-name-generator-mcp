@@ -46,6 +46,7 @@ from pydantic import Field
 from .extra_data import (
     ADJ_ANY,
     ADJ_LIVING,
+    ADJ_POETIC,
     COUNTRY_ENDINGS,
     EXTRA_PLACE_KINDS_JA,
     EXTRA_PLACES,
@@ -54,7 +55,6 @@ from .extra_data import (
     NOUN_LIVING,
     NOUN_OBJECT,
     TAVERN_SUFFIXES,
-    WAFUU_KIND_JA_TERM,
     WAFUU_TAVERN_SUFFIXES,
     WAFUU_WORDS,
 )
@@ -405,13 +405,20 @@ WAFUU_STANDALONE_FAMILIES = [
 ]
 
 for _k, _s in STYLES.items():
-    _s["family"] = _s["family"].split(",")
+    if isinstance(_s["family"], str):  # importlib.reload() でも壊れないように
+        _s["family"] = _s["family"].split(",")
 
-BLOCKLIST = [
-    "ass", "fuk", "fuc", "shit", "sex", "cum", "tit", "nig", "kkk", "unko", "chinko",
-    "manko", "chinpo", "oppai", "baka", "aho", "shine", "kill", "die", "poo",
-    "napoli", "milano", "roma", "paris", "london", "berlin", "madrid", "athens", "tokyo", "kyoto", "osaka"
+# 部分一致で弾く語 (英語圏で不適切なもの。和風では「ふく」「かした」等を巻き込むので対象外)
+BLOCK_SUBSTR_EN = ["fuk", "fuc", "shit", "kkk", "nigg", "nigr"]
+# 部分一致で弾く語 (日本語で不適切なもの。全スタイル対象)
+BLOCK_SUBSTR_JP = ["unko", "chinko", "manko", "chinpo", "oppai"]
+# 名前全体がこれと一致するときだけ弾く語 (Cassian の "ass" や Titania の "tit" を巻き込まないため)
+BLOCK_EXACT = [
+    "ass", "sex", "cum", "tit", "baka", "aho", "shine", "kill", "die", "poo",
+    "napoli", "milano", "roma", "paris", "london", "berlin", "madrid", "athens",
+    "tokyo", "kyoto", "osaka",
 ]
+BLOCKLIST = BLOCK_SUBSTR_EN + BLOCK_SUBSTR_JP + BLOCK_EXACT  # 互換用 (全部入りの一覧)
 
 
 # ---------------------------------------------------------------------------
@@ -530,7 +537,9 @@ def _valid(name, spec, min_len, max_len):
         return False
     if _max_cluster(n) > spec.get("max_cluster", 3):
         return False
-    if any(b in n for b in BLOCKLIST):
+    if n in BLOCK_EXACT or any(b in n for b in BLOCK_SUBSTR_JP):
+        return False
+    if spec.get("kana") != "hiragana" and any(b in n for b in BLOCK_SUBSTR_EN):
         return False
     return True
 
@@ -641,7 +650,7 @@ def character_names(
     min_len: int = 3,
     max_len: int = 11,
     avoid: list[str] | None = None,
-):
+) -> dict:
     spec = _get_style(style)
     if gender not in ("any", "male", "female", "neutral"):
         raise ValueError("gender must be any / male / female / neutral")
@@ -685,7 +694,7 @@ def place_names(
     min_len: int = 4,
     max_len: int = 14,
     avoid: list[str] | None = None,
-):
+) -> dict:
     spec = _get_style(style)
     if kind not in PLACE_KINDS:
         raise ValueError(f"kind must be one of: {', '.join(PLACE_KINDS)}")
@@ -704,7 +713,8 @@ def place_names(
             if _mora(_kana(root or name, spec)) >= 2 or n_syl == 2:
                 break
             n_syl = 2
-        term = (WAFUU_KIND_JA_TERM.get(kind) if style == "wafuu" else None) or KIND_JA_TERM[kind]
+        # 和風は「machi=町」のように接尾辞ごとの漢字をそのまま使う (町なのに「村」になるのを防ぐ)
+        term = gloss if style == "wafuu" else KIND_JA_TERM[kind]
         return name, {
             "kind": kind,
             "suffix": suf,
@@ -738,7 +748,7 @@ def country_names(
     min_len: int = 4,
     max_len: int = 13,
     avoid: list[str] | None = None,
-):
+) -> dict:
     """国名。語幹+国名の語尾に、政体ごとの日本語/英語の正式名と元首の称号を添える。"""
     spec = _get_style(style)
     if government not in GOVERNMENTS:
@@ -772,14 +782,18 @@ def _wpick(r, seq):
     return r.choices(seq, weights=[x[-1] for x in seq], k=1)[0]
 
 
-def _western_tavern(r, kind):
+def _western_tavern(r, kind, whimsy=0.25):
     living = r.random() < 0.55
     n_en, n_ja = r.choice(NOUN_LIVING if living else NOUN_OBJECT)
     sfx_en, sfx_ja, _w = _wpick(r, TAVERN_SUFFIXES[kind])
     pattern = r.choices(["adj", "and", "bare"], [55, 30, 15], k=1)[0]
     words = {n_en}
     if pattern == "adj":
-        a_en, a_ja = r.choice(ADJ_ANY + (ADJ_LIVING if living else []))
+        # 物には本来「生き物用」の形容詞を付けないが、whimsy の確率で擬人化を許す
+        # (眠れるランタン亭・眠らざるランタン亭のような詩的な屋号)
+        personify = (not living) and r.random() < whimsy
+        pool = ADJ_ANY + (ADJ_LIVING + ADJ_POETIC if (living or personify) else [])
+        a_en, a_ja = r.choice(pool)
         core_en, core_ja = f"{a_en} {n_en}", f"{a_ja}{n_ja}"
     elif pattern == "and":
         n2_en, n2_ja = r.choice([w for w in NOUN_LIVING + NOUN_OBJECT if w[0] != n_en])
@@ -803,7 +817,8 @@ def tavern_names(
     count: int = 5,
     seed: int | str | None = None,
     avoid: list[str] | None = None,
-):
+    whimsy: float = 0.25,
+) -> dict:
     """酒場・宿屋の屋号。西洋風は日英対訳 (酔いどれ鹿亭 / The Drunken Stag)、和風は漢字+ローマ字。"""
     if tone not in ("western", "wafuu"):
         raise ValueError("tone must be western / wafuu")
@@ -812,7 +827,12 @@ def tavern_names(
     count = _clamp_count(count)
     seed, rng = _prep(seed)
     taken = {n.lower() for n in _reserved_names() + list(avoid or [])}
-    make = _western_tavern if tone == "western" else _wafuu_tavern
+    whimsy = max(0.0, min(float(whimsy), 1.0))
+    if tone == "western":
+        def make(r, k):
+            return _western_tavern(r, k, whimsy)
+    else:
+        make = _wafuu_tavern
     results, seen, used = [], set(), set()
     tries = count * 200
     for i in range(tries):
@@ -841,7 +861,7 @@ def names_from_examples(
     min_len: int | None = None,
     max_len: int | None = None,
     avoid: list[str] | None = None,
-):
+) -> dict:
     names = [e.strip() for e in examples if e and e.strip()]
     if len(names) < 3:
         raise ValueError("examples は3個以上ください (10個以上だと安定します)")
@@ -891,7 +911,8 @@ def names_from_examples(
             if len(res) >= count:
                 break
             nm, _e = gen(rng)
-            if not (lo <= len(nm) <= hi) or _too_similar(nm, taken):
+            # 2〜4文字の漢字名は1文字違いでも別の名前なので、完全一致だけを避ける
+            if not (lo <= len(nm) <= hi) or nm in taken:
                 continue
             taken.append(nm)
             res.append({"name": nm})
@@ -902,7 +923,7 @@ def names_from_examples(
     return out
 
 
-def reserve(names: list[str], note: str = ""):
+def reserve(names: list[str], note: str = "") -> dict:
     store = _load_store()
     added, already = [], []
     for n in names:
@@ -923,12 +944,12 @@ def reserve(names: list[str], note: str = ""):
     return {"reserved": added, "already_reserved": already, "total": len(store)}
 
 
-def list_reserved_names():
+def list_reserved_names() -> dict:
     store = _load_store()
     return {"total": len(store), "names": list(store.values()), "store_path": str(_store_path())}
 
 
-def release(names: list[str]):
+def release(names: list[str]) -> dict:
     store = _load_store()
     removed, missing = [], []
     for n in names:
@@ -941,7 +962,7 @@ def release(names: list[str]):
     return {"released": removed, "not_found": missing, "total": len(store)}
 
 
-def styles_overview():
+def styles_overview() -> dict:
     out = []
     for key, spec in STYLES.items():
         rng = random.Random(f"demo:{key}")
@@ -1114,6 +1135,10 @@ def _build_server():
             list[str] | None,
             Field(description="除外したい屋号のリスト (予約済みの名前は自動で除外されます)")
         ] = None,
+        whimsy: Annotated[
+            float,
+            Field(description="擬人化の出現率 0〜1 (既定0.25)。物に「眠れる」「眠らざる」などを付けた詩的な屋号(眠らざるランタン亭)が出る割合。0で無効。西洋風のみ", ge=0.0, le=1.0)
+        ] = 0.25,
     ) -> dict:
         return tavern_names(
             tone=tone,
@@ -1121,6 +1146,7 @@ def _build_server():
             count=count,
             seed=seed,
             avoid=avoid,
+            whimsy=whimsy,
         )
 
     @mcp.tool(description="既存の名前リストからマルコフ連鎖で文字連接を学習し、「同じ世界っぽい」新しい名前を生成します。")

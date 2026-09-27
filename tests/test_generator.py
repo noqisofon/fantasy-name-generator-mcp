@@ -3,9 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fantasy_name_generator_mcp.extra_data import KIND_JA_TERM, WAFUU_KIND_JA_TERM
+from fantasy_name_generator_mcp.extra_data import KIND_JA_TERM
 from fantasy_name_generator_mcp.index import (
     _mora,
+    _valid,
     STYLES,
     PLACE_KINDS,
     GOVERNMENTS,
@@ -126,7 +127,7 @@ class TestFantasyNameGenerator(unittest.TestCase):
                 for item in res["names"]:
                     self.assertIn("ja_name", item)
                     # 語幹が1拍だけの「ロ砂漠」のような呼び名を出さない
-                    term = (WAFUU_KIND_JA_TERM.get(kind) if style == "wafuu" else None) or KIND_JA_TERM[kind]
+                    term = item["suffix_meaning"] if style == "wafuu" else KIND_JA_TERM[kind]
                     self.assertTrue(item["ja_name"].endswith(term))
                     root = item["ja_name"][: -len(term)]
                     self.assertGreaterEqual(_mora(root), 2, (style, kind, item))
@@ -134,6 +135,33 @@ class TestFantasyNameGenerator(unittest.TestCase):
     def test_place_ja_name(self):
         item = place_names(style="southern", kind="desert", count=1, seed=3)["names"][0]
         self.assertTrue(item["ja_name"].endswith("砂漠"))
+
+    def test_wafuu_ja_name_follows_suffix_meaning(self):
+        # 「machi=町」の地名が「村」になる不整合が出ないこと
+        for kind in ("town", "city", "forest", "mountain"):
+            for seed in range(20):
+                for item in place_names(style="wafuu", kind=kind, count=5, seed=seed)["names"]:
+                    self.assertTrue(item["ja_name"].endswith(item["suffix_meaning"]), item)
+
+    def test_blocklist_does_not_reject_good_names(self):
+        loose = dict(max_cluster=9)
+        for name in ["Cassian", "Cassandra", "Titania", "Titus", "Dietrich", "Elidiel",
+                     "Nigel", "Killian", "Kroma", "Hoshine"]:
+            self.assertTrue(_valid(name, loose, 3, 14), name)
+        # 和風では fuk / shit を含む自然な名前も許す
+        wafuu = dict(max_cluster=9, kana="hiragana")
+        for name in ["Fukuda", "Fukushima", "Kashita", "Hoshito"]:
+            self.assertTrue(_valid(name, wafuu, 3, 14), name)
+        # 明らかに不適切なもの・実在の都市名そのものは弾く
+        for name in ["Ass", "Napoli", "Unkobe", "Chinko"]:
+            self.assertFalse(_valid(name, loose, 3, 14), name)
+
+    def test_names_from_kanji_examples(self):
+        ex = ["織田信長", "豊臣秀吉", "徳川家康", "武田信玄", "上杉謙信", "伊達政宗", "真田幸村", "明智光秀"]
+        res = names_from_examples(examples=ex, count=3, seed=1, order=1)
+        self.assertEqual(len(res["names"]), 3)
+        for item in res["names"]:
+            self.assertNotIn(item["name"], ex)
 
     def test_country_names(self):
         for style in STYLES:
@@ -155,9 +183,15 @@ class TestFantasyNameGenerator(unittest.TestCase):
                 self.assertEqual(len({n["en"] for n in res["names"]}), 6)
                 for n in res["names"]:
                     self.assertTrue(n["ja"] and n["en"])
-        # 生き物にだけ合う形容詞を物に付けない (眠れるランタン等)
-        for n in tavern_names("western", "any", 50, seed=1)["names"]:
-            self.assertNotRegex(n["en"], r"(Sleeping|Drunken|Laughing|Dancing) (Lantern|Anchor|Barrel|Crown|Bell|Key)")
+        living_adj = r"(Sleeping|Drunken|Laughing|Dancing|Sleepless|Weeping) "
+        objects = r"(Lantern|Anchor|Barrel|Crown|Bell|Key|Candle|Mug)"
+        # whimsy=0: 生き物用の形容詞を物に付けない
+        for n in tavern_names("western", "any", 50, seed=1, whimsy=0)["names"]:
+            self.assertNotRegex(n["en"], living_adj + objects)
+        # whimsy=1: 擬人化した屋号 (眠れるランタン亭など) が出る
+        hits = [n for n in tavern_names("western", "any", 50, seed=1, whimsy=1)["names"]
+                if __import__("re").search(living_adj + objects, n["en"])]
+        self.assertTrue(hits)
         a = tavern_names("western", "inn", 5, seed=9)
         b = tavern_names("western", "inn", 5, seed=9)
         self.assertEqual(a["names"], b["names"])

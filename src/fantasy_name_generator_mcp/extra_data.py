@@ -19,8 +19,7 @@ KIND_JA_TERM = dict(
     plains="平原", desert="砂漠", wasteland="荒野", swamp="湿地", hills="丘陵",
     valley="谷", coast="海岸", sea="海", island="島", cave="洞窟", ruins="遺跡",
 )
-# 和風だけ、ja_name の語を差し替える
-WAFUU_KIND_JA_TERM = dict(town="村", city="京", forest="森")
+# (和風は、選ばれた接尾辞の意味 = 町・村・山 など漢字の語をそのまま ja_name に使う)
 
 # style -> kind -> "suffix:意味,..."   (既存の kind に書くと接尾辞が追加される)
 EXTRA_PLACES = {
@@ -127,6 +126,12 @@ ADJ_LIVING = [
     ("Wandering", "さまよう"), ("Weary", "くたびれた"), ("Prancing", "跳ねる"),
     ("Merry", "上機嫌な"), ("One-Eyed", "片目の"), ("Whistling", "口笛を吹く"),
     ("Grumbling", "不機嫌な"), ("Singing", "歌う"),
+]
+# 形容詞: 擬人化・詩的なもの (物にも生き物にも使える。「眠らざるランタン亭」など)
+ADJ_POETIC = [
+    ("Sleepless", "眠らざる"), ("Weeping", "泣く"), ("Whispering", "ささやく"),
+    ("Forgetful", "忘れっぽい"), ("Homesick", "郷愁の"),
+    ("Unwinking", "瞬かぬ"),
 ]
 NOUN_LIVING = [
     ("Stag", "鹿"), ("Boar", "猪"), ("Crow", "鴉"), ("Goose", "ガチョウ"), ("Owl", "梟"),

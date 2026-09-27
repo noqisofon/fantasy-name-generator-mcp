@@ -48,7 +48,7 @@ python -m fantasy_name_generator_mcp --demo
       "command": "uv",
       "args": [
         "--directory",
-        "C:/Users/nedri/Projects/fantasy-name-generator-mcp",
+        "/path/to/fantasy-name-generator-mcp",
         "run",
         "fantasy-name-generator-mcp"
       ]
@@ -136,8 +136,9 @@ MCP 設定画面にて以下を追加します：
 | `count` | `int`                | `5`         | 生成数 (1〜50)                                         |
 | `seed`  | `int \| str \| None` | `None`      | 乱数シード                                             |
 | `avoid` | `list[str] \| None`  | `None`      | 除外リスト（予約済みの屋号は自動除外）                 |
+| `whimsy`| `float`              | `0.25`      | 擬人化の出現率 (0〜1)。西洋風のみ                      |
 
-形容詞は「生き物にだけ合うもの（酔いどれ・眠れる…）」と「何にでも合うもの（錆びた・銀の…）」に分けてあり、「眠れるランタン」のような不自然な組み合わせは出ません。単語表は `extra_data.py` にあります。
+形容詞は「生き物にだけ合うもの（酔いどれ・眠れる…）」と「何にでも合うもの（錆びた・銀の…）」に分けてあります。物には基本的に前者を付けませんが、`whimsy` の確率で擬人化を許し、「眠れるランタン亭」「眠らざるランタン亭」のような詩的な屋号を出します（`0` で無効）。単語表は `extra_data.py` にあります。
 
 ### 5. `generate_names_from_examples`
 既存の名前リストからマルコフ連鎖で「同じ世界っぽい」名前を生成します。
@@ -147,7 +148,10 @@ MCP 設定画面にて以下を追加します：
 | `examples` | `list[str]`          | **必須** | サンプル名リスト (3個以上、10個以上推奨) |
 | `count`    | `int`                | `5`      | 生成数 (1〜50)                           |
 | `order`    | `int`                | `2`      | マルコフ連鎖の次数 (1〜3)                |
+| `avoid`    | `list[str] \| None`  | `None`   | 除外したい名前のリスト                   |
 | `seed`     | `int \| str \| None` | `None`   | 乱数シード                               |
+
+漢字やカナの例（「織田信長」など）も渡せます。2〜4 文字の短い名前は、次数を `1` にすると安定して新しい組み合わせが出ます。ローマ字の例にはカナ表記 (`kana`) が付きますが、漢字・カナの例には付きません。
 
 ### 6. `reserve_names` / `list_reserved` / `release_names`
 - `reserve_names(names, note)`: 採用した名前を予約リストに記録（重複回避用）。
