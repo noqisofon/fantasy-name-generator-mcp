@@ -97,6 +97,9 @@ class TestFantasyNameGenerator(unittest.TestCase):
         # 拗音のテスト
         self.assertEqual(to_katakana("Santanyaan"), "サンタニャーン")
         self.assertEqual(to_katakana("Ryuma"), "リュマ")
+        # 連続 n のテスト
+        self.assertEqual(to_katakana("Lynn"), "リン")
+        self.assertEqual(to_katakana("Gwenn"), "グウェン")
 
     def test_wafuu_hiragana(self):
         res = character_names(style="wafuu", count=3, seed=999, with_family=True)
